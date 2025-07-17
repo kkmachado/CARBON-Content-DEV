@@ -49,10 +49,12 @@ interface CloudinaryVideo {
   created_at: string;
   tags: string[];
   context?: {
+    alt?: string;
     custom?: {
       caption?: string;
       title?: string;
     };
+    [key: string]: any;
   };
   metadata?: {
     validade?: string;
@@ -136,7 +138,7 @@ const downloadAndShareVideo = async (video: CloudinaryVideo, onError?: () => voi
         try {
           await navigator.share({
             title: video.context?.custom?.title || video.display_name,
-            text: `${video.metadata?.legenda || video.context?.custom?.caption || ''}`,
+            text: `${video.context?.custom?.caption || 'nada'}`,
             files: [file]
           });
           console.log('✅ Vídeo compartilhado com sucesso');
@@ -1475,17 +1477,10 @@ const VideoApp = () => {
                      {video.context?.custom?.title || video.display_name}
                    </h3>
                    
-                   {/* Legenda */}
-                   {video.metadata?.legenda && (
+                   {/* Legenda apenas do alt ou fallback para legenda */}
+                   {(video.context?.alt || video.metadata?.legenda) && (
                      <p className="text-gray-600 text-sm mb-3 line-clamp-2">
-                       {video.metadata.legenda}
-                     </p>
-                   )}
-                   
-                   {/* Descrição fallback */}
-                   {!video.metadata?.legenda && video.context?.custom?.caption && (
-                     <p className="text-gray-600 text-sm mb-3 line-clamp-2">
-                       {video.context.custom.caption}
+                       {video.context?.alt || video.metadata?.legenda}
                      </p>
                    )}
                    
@@ -1634,11 +1629,11 @@ const VideoApp = () => {
                  </div>
                )}
 
-               {/* Legenda do metadata ou descrição do context */}
-               {(selectedVideo.metadata?.legenda || selectedVideo.context?.custom?.caption) && (
+               {/* Legenda do alt ou fallback para legenda */}
+               {(selectedVideo.context?.alt || selectedVideo.metadata?.legenda) && (
                  <div>
                    <p className="text-gray-600 text-sm md:text-base">
-                     {selectedVideo.metadata?.legenda || selectedVideo.context?.custom?.caption}
+                     {selectedVideo.context?.alt || selectedVideo.metadata?.legenda}
                    </p>
                  </div>
                )}
