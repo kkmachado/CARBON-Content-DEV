@@ -1480,7 +1480,7 @@ const VideoApp = () => {
                    {/* Legenda */}
                    {getCaption(video) && (
                      <p className="text-gray-600 text-sm mb-3 line-clamp-2">
-                       {getCaption(video)}
+                       Legenda: {getCaption(video)}
                      </p>
                    )}
                    {/* Descrição fallback */}
