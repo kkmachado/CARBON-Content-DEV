@@ -72,8 +72,7 @@ interface ApiResponse<T> {
 const generateWhatsAppMessage = (video: CloudinaryVideo): string => {
   const title = video.context?.custom?.title || video.display_name || 'Vídeo CARBON';
   const montadora = video.metadata?.montadora ? video.metadata.montadora.toUpperCase() : '';
-  // legenda agora prioriza caption robustamente
-  const legenda = getCaption(video) || video.metadata?.legenda || '';
+  const legenda = video.metadata?.legenda || video.context?.custom?.caption || '';
   const tags = video.tags && video.tags.length > 0 ? video.tags.join(', ') : '';
   
   let message = `🎬 *${title}*\n\n`;
@@ -137,8 +136,7 @@ const downloadAndShareVideo = async (video: CloudinaryVideo, onError?: () => voi
         try {
           await navigator.share({
             title: video.context?.custom?.title || video.display_name,
-            // legenda agora prioriza caption robustamente
-            text: `${getCaption(video) || video.metadata?.legenda || ''}`,
+            text: `${video.metadata?.legenda || video.context?.custom?.caption || ''}`,
             files: [file]
           });
           console.log('✅ Vídeo compartilhado com sucesso');
@@ -1478,16 +1476,17 @@ const VideoApp = () => {
                    </h3>
                    
                    {/* Legenda */}
-                   {getCaption(video) ? (
+                   {video.metadata?.legenda && (
                      <p className="text-gray-600 text-sm mb-3 line-clamp-2">
-                       {getCaption(video)}
+                       {video.metadata.legenda}
                      </p>
-                   ) : (
-                     video.metadata?.legenda && (
-                       <p className="text-gray-600 text-sm mb-3 line-clamp-2">
-                         {video.metadata.legenda}
-                       </p>
-                     )
+                   )}
+                   
+                   {/* Descrição fallback */}
+                   {!video.metadata?.legenda && video.context?.custom?.caption && (
+                     <p className="text-gray-600 text-sm mb-3 line-clamp-2">
+                       {video.context.custom.caption}
+                     </p>
                    )}
                    
                    {/* Tags */}
@@ -1635,21 +1634,13 @@ const VideoApp = () => {
                  </div>
                )}
 
-               {/* Legenda do caption ou legenda */}
-               {getCaption(selectedVideo) ? (
+               {/* Legenda do metadata ou descrição do context */}
+               {(selectedVideo.metadata?.legenda || selectedVideo.context?.custom?.caption) && (
                  <div>
                    <p className="text-gray-600 text-sm md:text-base">
-                     {getCaption(selectedVideo)}
+                     {selectedVideo.metadata?.legenda || selectedVideo.context?.custom?.caption}
                    </p>
                  </div>
-               ) : (
-                 selectedVideo.metadata?.legenda && (
-                   <div>
-                     <p className="text-gray-600 text-sm md:text-base">
-                       {selectedVideo.metadata.legenda}
-                     </p>
-                   </div>
-                 )
                )}
                
                {/* Tags no modal */}
@@ -1736,39 +1727,5 @@ const VideoApp = () => {
    </div>
  );
 };
-
-// Função utilitária para acessar caption corretamente
-function getCaption(video: CloudinaryVideo): string | undefined {
-  // Cloudinary pode retornar context/custom como objeto, string JSON, ou até aninhado
-  let context = video.context;
-  if (typeof context === 'string') {
-    try {
-      context = JSON.parse(context);
-    } catch {
-      context = {};
-    }
-  }
-  let custom = context?.custom;
-  if (typeof custom === 'string') {
-    try {
-      custom = JSON.parse(custom);
-    } catch {
-      custom = {};
-    }
-  }
-  // Se custom for undefined, tentar buscar em context diretamente (caso context seja o próprio custom)
-  if (!custom && context && context.caption) {
-    return context.caption;
-  }
-  // Se custom for undefined, tentar buscar em video.context.caption (caso não esteja aninhado)
-  if (!custom && (context as any)?.caption) {
-    return (context as any).caption;
-  }
-  // Se custom for undefined, tentar buscar em video.custom (caso context não exista)
-  if (!custom && (video as any).custom && (video as any).custom.caption) {
-    return (video as any).custom.caption;
-  }
-  return custom?.caption;
-}
 
 export default VideoApp;
