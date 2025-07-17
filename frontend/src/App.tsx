@@ -1480,13 +1480,13 @@ const VideoApp = () => {
                    {/* Legenda */}
                    {getCaption(video) && (
                      <p className="text-gray-600 text-sm mb-3 line-clamp-2">
-                       Legenda: {getCaption(video)}
+                       Alt: {getCaption(video)}
                      </p>
                    )}
                    {/* Descrição fallback */}
                    {!getCaption(video) && video.metadata?.legenda && (
                      <p className="text-gray-600 text-sm mb-3 line-clamp-2">
-                       {video.metadata.legenda}
+                       Legenda: {video.metadata.legenda}
                      </p>
                    )}
                    
@@ -1639,7 +1639,7 @@ const VideoApp = () => {
                {(getCaption(selectedVideo) || selectedVideo.metadata?.legenda) && (
                  <div>
                    <p className="text-gray-600 text-sm md:text-base">
-                     {getCaption(selectedVideo) || selectedVideo.metadata?.legenda}
+                     Legenda: {getCaption(selectedVideo) || selectedVideo.metadata?.legenda}
                    </p>
                  </div>
                )}
