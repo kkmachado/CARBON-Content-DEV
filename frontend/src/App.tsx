@@ -72,8 +72,8 @@ interface ApiResponse<T> {
 const generateWhatsAppMessage = (video: CloudinaryVideo): string => {
   const title = video.context?.custom?.title || video.display_name || 'Vídeo CARBON';
   const montadora = video.metadata?.montadora ? video.metadata.montadora.toUpperCase() : '';
-  // legenda agora prioriza caption
-  const legenda = video.context?.custom?.caption || video.metadata?.legenda || '';
+  // legenda agora prioriza caption robustamente
+  const legenda = getCaption(video) || video.metadata?.legenda || '';
   const tags = video.tags && video.tags.length > 0 ? video.tags.join(', ') : '';
   
   let message = `🎬 *${title}*\n\n`;
@@ -137,8 +137,8 @@ const downloadAndShareVideo = async (video: CloudinaryVideo, onError?: () => voi
         try {
           await navigator.share({
             title: video.context?.custom?.title || video.display_name,
-            // legenda agora prioriza caption
-            text: `${video.context?.custom?.caption || video.metadata?.legenda || ''}`,
+            // legenda agora prioriza caption robustamente
+            text: `${getCaption(video) || video.metadata?.legenda || ''}`,
             files: [file]
           });
           console.log('✅ Vídeo compartilhado com sucesso');
@@ -1478,13 +1478,13 @@ const VideoApp = () => {
                    </h3>
                    
                    {/* Legenda */}
-                   {(video.context?.custom?.caption) && (
+                   {getCaption(video) && (
                      <p className="text-gray-600 text-sm mb-3 line-clamp-2">
-                       {video.context.custom.caption}
+                       {getCaption(video)}
                      </p>
                    )}
                    {/* Descrição fallback */}
-                   {!video.context?.custom?.caption && video.metadata?.legenda && (
+                   {!getCaption(video) && video.metadata?.legenda && (
                      <p className="text-gray-600 text-sm mb-3 line-clamp-2">
                        {video.metadata.legenda}
                      </p>
@@ -1636,10 +1636,10 @@ const VideoApp = () => {
                )}
 
                {/* Legenda do caption ou legenda */}
-               {(selectedVideo.context?.custom?.caption || selectedVideo.metadata?.legenda) && (
+               {(getCaption(selectedVideo) || selectedVideo.metadata?.legenda) && (
                  <div>
                    <p className="text-gray-600 text-sm md:text-base">
-                     {selectedVideo.context?.custom?.caption || selectedVideo.metadata?.legenda}
+                     {getCaption(selectedVideo) || selectedVideo.metadata?.legenda}
                    </p>
                  </div>
                )}
@@ -1728,5 +1728,26 @@ const VideoApp = () => {
    </div>
  );
 };
+
+// Função utilitária para acessar caption corretamente
+function getCaption(video: CloudinaryVideo): string | undefined {
+  let context = video.context;
+  if (typeof context === 'string') {
+    try {
+      context = JSON.parse(context);
+    } catch {
+      context = {};
+    }
+  }
+  let custom = context?.custom;
+  if (typeof custom === 'string') {
+    try {
+      custom = JSON.parse(custom);
+    } catch {
+      custom = {};
+    }
+  }
+  return custom?.caption;
+}
 
 export default VideoApp;
