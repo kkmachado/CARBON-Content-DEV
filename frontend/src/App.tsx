@@ -72,7 +72,8 @@ interface ApiResponse<T> {
 const generateWhatsAppMessage = (video: CloudinaryVideo): string => {
   const title = video.context?.custom?.title || video.display_name || 'Vídeo CARBON';
   const montadora = video.metadata?.montadora ? video.metadata.montadora.toUpperCase() : '';
-  const legenda = video.metadata?.legenda || video.context?.custom?.caption || '';
+  // legenda agora prioriza caption
+  const legenda = video.context?.custom?.caption || video.metadata?.legenda || '';
   const tags = video.tags && video.tags.length > 0 ? video.tags.join(', ') : '';
   
   let message = `🎬 *${title}*\n\n`;
@@ -136,7 +137,8 @@ const downloadAndShareVideo = async (video: CloudinaryVideo, onError?: () => voi
         try {
           await navigator.share({
             title: video.context?.custom?.title || video.display_name,
-            text: `${video.metadata?.legenda || video.context?.custom?.caption || ''}`,
+            // legenda agora prioriza caption
+            text: `${video.context?.custom?.caption || video.metadata?.legenda || ''}`,
             files: [file]
           });
           console.log('✅ Vídeo compartilhado com sucesso');
@@ -1476,16 +1478,15 @@ const VideoApp = () => {
                    </h3>
                    
                    {/* Legenda */}
-                   {video.metadata?.legenda && (
-                     <p className="text-gray-600 text-sm mb-3 line-clamp-2">
-                       {video.metadata.legenda}
-                     </p>
-                   )}
-                   
-                   {/* Descrição fallback */}
-                   {!video.metadata?.legenda && video.context?.custom?.caption && (
+                   {(video.context?.custom?.caption) && (
                      <p className="text-gray-600 text-sm mb-3 line-clamp-2">
                        {video.context.custom.caption}
+                     </p>
+                   )}
+                   {/* Descrição fallback */}
+                   {!video.context?.custom?.caption && video.metadata?.legenda && (
+                     <p className="text-gray-600 text-sm mb-3 line-clamp-2">
+                       {video.metadata.legenda}
                      </p>
                    )}
                    
@@ -1634,11 +1635,11 @@ const VideoApp = () => {
                  </div>
                )}
 
-               {/* Legenda do metadata ou descrição do context */}
-               {(selectedVideo.metadata?.legenda || selectedVideo.context?.custom?.caption) && (
+               {/* Legenda do caption ou legenda */}
+               {(selectedVideo.context?.custom?.caption || selectedVideo.metadata?.legenda) && (
                  <div>
                    <p className="text-gray-600 text-sm md:text-base">
-                     {selectedVideo.metadata?.legenda || selectedVideo.context?.custom?.caption}
+                     {selectedVideo.context?.custom?.caption || selectedVideo.metadata?.legenda}
                    </p>
                  </div>
                )}
