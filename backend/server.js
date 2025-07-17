@@ -16,7 +16,7 @@ const CLOUDINARY_CONFIG = {
 
 // Middleware
 app.use(cors({
-  origin: ['https://carbon.carlosmachado.tech', 'https://carbon.carlosmachado.tech'],
+  origin: ['https://carboncontent.carlosmachado.tech', 'https://carboncontent.carlosmachado.tech'],
   credentials: true
 }));
 app.use(express.json());
@@ -492,7 +492,7 @@ app.listen(PORT_FINAL, () => {
   console.log(`🔑 API Key configurada: ${CLOUDINARY_CONFIG.api_key ? 'SIM' : 'NÃO'}`);
   console.log(`🔐 API Secret configurada: ${CLOUDINARY_CONFIG.api_secret ? 'SIM' : 'NÃO'}`);
   console.log(`📅 Data atual para filtros: ${currentDate}`);
-  console.log(`🌐 CORS habilitado para: https://carbon.carlosmachado.tech`);
+  console.log(`🌐 CORS habilitado para: https://carboncontent.carlosmachado.tech`);
   console.log(`🔗 Endpoints disponíveis:`);
   console.log(`   GET  /api/health - Status do servidor`);
   console.log(`   GET  /api/videos - Buscar todos os vídeos válidos`);

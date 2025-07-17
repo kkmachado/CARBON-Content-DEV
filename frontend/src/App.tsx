@@ -507,7 +507,7 @@ class CloudinaryClient {
 
   constructor() {
     this.cloudName = CLOUDINARY_CLOUD_NAME;
-    this.backendUrl = 'https://api.carbon.carlosmachado.tech';
+    this.backendUrl = 'https://api.carboncontent.carlosmachado.tech';
   }
 
   async searchVideos(searchTerm: string): Promise<CloudinaryVideo[]> {
