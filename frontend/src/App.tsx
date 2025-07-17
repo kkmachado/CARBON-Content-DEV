@@ -138,7 +138,7 @@ const downloadAndShareVideo = async (video: CloudinaryVideo, onError?: () => voi
         try {
           await navigator.share({
             title: video.context?.custom?.title || video.display_name,
-            text: `${video.context?.custom?.caption || 'nada'}`,
+            text: `${video.context?.alt || video.metadata?.legenda}`,
             files: [file]
           });
           console.log('✅ Vídeo compartilhado com sucesso');
