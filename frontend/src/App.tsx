@@ -1478,16 +1478,16 @@ const VideoApp = () => {
                    </h3>
                    
                    {/* Legenda */}
-                   {getCaption(video) && (
+                   {getCaption(video) ? (
                      <p className="text-gray-600 text-sm mb-3 line-clamp-2">
-                       Alt: {getCaption(video)}
+                       {getCaption(video)}
                      </p>
-                   )}
-                   {/* Descrição fallback */}
-                   {!getCaption(video) && video.metadata?.legenda && (
-                     <p className="text-gray-600 text-sm mb-3 line-clamp-2">
-                       Legenda: {video.metadata.legenda}
-                     </p>
+                   ) : (
+                     video.metadata?.legenda && (
+                       <p className="text-gray-600 text-sm mb-3 line-clamp-2">
+                         {video.metadata.legenda}
+                       </p>
+                     )
                    )}
                    
                    {/* Tags */}
@@ -1636,12 +1636,20 @@ const VideoApp = () => {
                )}
 
                {/* Legenda do caption ou legenda */}
-               {(getCaption(selectedVideo) || selectedVideo.metadata?.legenda) && (
+               {getCaption(selectedVideo) ? (
                  <div>
                    <p className="text-gray-600 text-sm md:text-base">
-                     Legenda: {getCaption(selectedVideo) || selectedVideo.metadata?.legenda}
+                     {getCaption(selectedVideo)}
                    </p>
                  </div>
+               ) : (
+                 selectedVideo.metadata?.legenda && (
+                   <div>
+                     <p className="text-gray-600 text-sm md:text-base">
+                       {selectedVideo.metadata.legenda}
+                     </p>
+                   </div>
+                 )
                )}
                
                {/* Tags no modal */}
@@ -1731,6 +1739,7 @@ const VideoApp = () => {
 
 // Função utilitária para acessar caption corretamente
 function getCaption(video: CloudinaryVideo): string | undefined {
+  // Cloudinary pode retornar context/custom como objeto, string JSON, ou até aninhado
   let context = video.context;
   if (typeof context === 'string') {
     try {
@@ -1746,6 +1755,18 @@ function getCaption(video: CloudinaryVideo): string | undefined {
     } catch {
       custom = {};
     }
+  }
+  // Se custom for undefined, tentar buscar em context diretamente (caso context seja o próprio custom)
+  if (!custom && context && context.caption) {
+    return context.caption;
+  }
+  // Se custom for undefined, tentar buscar em video.context.caption (caso não esteja aninhado)
+  if (!custom && (context as any)?.caption) {
+    return (context as any).caption;
+  }
+  // Se custom for undefined, tentar buscar em video.custom (caso context não exista)
+  if (!custom && (video as any).custom && (video as any).custom.caption) {
+    return (video as any).custom.caption;
   }
   return custom?.caption;
 }
