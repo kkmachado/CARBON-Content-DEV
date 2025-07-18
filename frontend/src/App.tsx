@@ -1447,14 +1447,14 @@ const VideoApp = () => {
          ) : (
            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
              {filteredVideos.map((video) => (
-               <div key={video.public_id} className="border rounded-lg overflow-hidden hover:shadow-lg transition-shadow duration-300">
+               <div key={video.public_id} className="border rounded-lg overflow-hidden hover:shadow-lg transition-shadow duration-300 flex flex-col h-full">">
                  <VideoThumbnail 
                    video={video} 
                    onClick={() => setSelectedVideo(video)} 
                  />
                  
                  {/* Informações do vídeo */}
-                 <div className="p-4">
+                 <div className="p-4 flex flex-col flex-1">
                    {/* Montadora */}
                    {video.metadata?.montadora && (
                      <div className="flex flex-wrap gap-1 mb-3">
@@ -1508,7 +1508,7 @@ const VideoApp = () => {
                    )}
                    
                    {/* Informações técnicas */}
-                   <div className="text-xs text-gray-500 mb-3 flex items-center gap-3">
+                   <div className="text-xs text-gray-500 mb-3 flex items-center gap-3 mt-auto">
                     {video.format && (
                        <span className="flex items-center gap-1">
                          <Calendar className="w-3 h-3" />
