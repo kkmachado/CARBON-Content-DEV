@@ -1447,7 +1447,7 @@ const VideoApp = () => {
          ) : (
            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
              {filteredVideos.map((video) => (
-               <div key={video.public_id} className="border rounded-lg overflow-hidden hover:shadow-lg transition-shadow duration-300 flex flex-col h-full">">
+               <div key={video.public_id} className="border rounded-lg overflow-hidden hover:shadow-lg transition-shadow duration-300 flex flex-col h-full">
                  <VideoThumbnail 
                    video={video} 
                    onClick={() => setSelectedVideo(video)} 
