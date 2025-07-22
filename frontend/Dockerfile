@@ -7,8 +7,8 @@ COPY . .
 RUN npm install
 RUN npm run build
 
-# (Opcional: servir build com um servidor estático, ex: serve)
-# RUN npm install -g serve
-# CMD ["serve", "-s", "build"]
+# Instale o servidor estático
+RUN npm install -g serve
 
-# ...adicione CMD conforme seu ambiente de produção...
+# Use o serve para rodar o app em produção
+CMD ["serve", "-s", "build", "-l", "3000"]
