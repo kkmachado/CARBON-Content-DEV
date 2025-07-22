@@ -265,9 +265,13 @@ class CloudinaryClient {
   private baseURL: string;
 
   constructor() {
-    this.baseURL = process.env.NODE_ENV === 'production' 
-      ? 'https://carboncontent.carlosmachado.tech/api'
-      : 'http://localhost:5001/api';
+    // Corrija o uso de process.env.NODE_ENV para funcionar no frontend
+    // Use uma variável de ambiente do React ou defina explicitamente
+    // Exemplo usando REACT_APP_API_URL (configure no .env)
+    this.baseURL =
+      (typeof process !== 'undefined' && process.env.REACT_APP_API_URL)
+        ? process.env.REACT_APP_API_URL
+        : 'https://api.carboncontent.carlosmachado.tech/api';
   }
 
   async testConnection(): Promise<boolean> {
