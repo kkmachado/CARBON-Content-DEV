@@ -289,7 +289,7 @@ const shareVideo = async (video: CloudinaryVideo) => {
   } catch (error) {
     console.error('Erro ao compartilhar:', error);
     // User cancelled or error occurred
-    if (error.name !== 'AbortError') {
+    if (typeof error === 'object' && error !== null && 'name' in error && (error as any).name !== 'AbortError') {
       alert('Erro ao compartilhar o vídeo. Tente novamente.');
     }
   }
@@ -752,7 +752,7 @@ function App() {
                  className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                >
                  <option value="">Todas as tags</option>
-                 {[...new Set(videos.flatMap(v => v.tags))].sort().map(tag => (
+                 {Array.from(new Set(videos.flatMap(v => v.tags))).sort().map(tag => (
                    <option key={tag} value={tag}>{tag}</option>
                  ))}
                </select>
