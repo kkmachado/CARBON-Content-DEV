@@ -15,8 +15,22 @@ const CLOUDINARY_CONFIG = {
 };
 
 // Middleware
+const allowedOrigins = [
+  'http://localhost:3000',
+  'http://localhost:3001',
+  'https://carboncontent.carlosmachado.tech'
+];
+
 app.use(cors({
-  origin: ['https://carboncontent.carlosmachado.tech', 'https://carboncontent.carlosmachado.tech'],
+  origin: function (origin, callback) {
+    // Permite requests sem origin (ex: mobile apps, curl, etc)
+    if (!origin) return callback(null, true);
+    if (allowedOrigins.indexOf(origin) !== -1) {
+      return callback(null, true);
+    } else {
+      return callback(new Error('Not allowed by CORS'));
+    }
+  },
   credentials: true
 }));
 app.use(express.json());
@@ -261,6 +275,42 @@ app.post('/api/videos/search', async (req, res) => {
   }
 });
 
+// Rota para upload de vídeo (para admins)
+app.post('/api/videos/upload', async (req, res) => {
+  try {
+    const { publicId, title, caption, tags } = req.body;
+    
+    // Gerar assinatura para upload
+    const uploadParams = {
+      public_id: `vendedores/${publicId}`,
+      resource_type: 'video',
+      context: `title=${title}|caption=${caption}`,
+      tags: tags.join(','),
+      metadata: JSON.stringify({
+        validade: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+        acesso_grupo_iesa: 'sim'
+      })
+    };
+
+    const { signature, timestamp } = generateCloudinarySignature(uploadParams, CLOUDINARY_CONFIG.api_secret);
+    
+    res.json({
+      signature,
+      timestamp,
+      api_key: CLOUDINARY_CONFIG.api_key,
+      cloud_name: CLOUDINARY_CONFIG.cloud_name,
+      upload_params: uploadParams
+    });
+
+  } catch (error) {
+    console.error('❌ Erro ao gerar assinatura:', error);
+    res.status(500).json({ 
+      error: 'Erro ao gerar assinatura', 
+      message: error.message 
+    });
+  }
+});
+
 // Rota de teste
 app.get('/api/health', (req, res) => {
   const currentDate = getCurrentDate();
@@ -456,7 +506,7 @@ app.listen(PORT_FINAL, () => {
   console.log(`🔑 API Key configurada: ${CLOUDINARY_CONFIG.api_key ? 'SIM' : 'NÃO'}`);
   console.log(`🔐 API Secret configurada: ${CLOUDINARY_CONFIG.api_secret ? 'SIM' : 'NÃO'}`);
   console.log(`📅 Data atual para filtros: ${currentDate}`);
-  console.log(`🌐 CORS habilitado para: https://carboncontent.carlosmachado.tech`);
+  console.log(`🌐 CORS habilitado para: http://localhost:3000`);
   console.log(`🔗 Endpoints disponíveis:`);
   console.log(`   GET  /api/health - Status do servidor`);
   console.log(`   GET  /api/videos - Buscar todos os vídeos válidos`);

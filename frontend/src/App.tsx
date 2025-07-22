@@ -71,102 +71,24 @@ interface ApiResponse<T> {
 }
 
 // ✅ FUNÇÕES PARA WHATSAPP
-const generateWhatsAppMessage = (video: CloudinaryVideo): string => {
-  const title = video.context?.custom?.title || video.display_name || 'Vídeo CARBON';
-  const montadora = video.metadata?.montadora ? video.metadata.montadora.toUpperCase() : '';
-  const legenda = video.metadata?.legenda || video.context?.custom?.caption || '';
-  const tags = video.tags && video.tags.length > 0 ? video.tags.join(', ') : '';
-  
-  let message = `🎬 *${title}*\n\n`;
-  
-  if (montadora) {
-    message += `🚗 *Montadora:* ${montadora}\n\n`;
-  }
-  
-  if (legenda) {
-    message += `📝 *Descrição:* ${legenda}\n\n`;
-  }
-  
-  if (tags) {
-    message += `🏷️ *Tags:* ${tags}\n\n`;
-  }
-  
-  message += `🔗 *Assistir:* ${video.secure_url}\n\n`;
-  message += `📅 *Compartilhado via CARBON Content*`;
-  
-  return encodeURIComponent(message);
-};
-
-const shareOnWhatsApp = (video: CloudinaryVideo, phoneNumber?: string) => {
-  const message = generateWhatsAppMessage(video);
-  
-  if (phoneNumber) {
-    const cleanPhone = phoneNumber.replace(/[^\d]/g, '');
-    const whatsappUrl = `https://wa.me/${cleanPhone}?text=${message}`;
-    window.open(whatsappUrl, '_blank');
-  } else {
-    const whatsappUrl = `https://wa.me/?text=${message}`;
-    window.open(whatsappUrl, '_blank');
-  }
-};
-
-const downloadAndShareVideo = async (video: CloudinaryVideo, onError?: () => void) => {
+// Remover: generateWhatsAppMessage, shareOnWhatsApp, downloadAndShareVideo, WhatsAppShareOptions, WhatsAppButton
+// Manter apenas shareVideoViaWebShare
+const shareVideoViaWebShare = async (video: CloudinaryVideo) => {
   try {
-    console.log('📥 Baixando vídeo para compartilhar...');
-    
-    const videoSizeMB = video.bytes ? (video.bytes / (1024 * 1024)) : 0;
-    
-    if (videoSizeMB > 16) {
-      // Usar callback para mostrar modal personalizado ao invés de alert
-      if (onError) {
-        onError();
-      }
-      shareOnWhatsApp(video);
-      return;
-    }
-    
     const response = await fetch(video.secure_url);
     if (!response.ok) throw new Error('Erro ao baixar vídeo');
-    
     const blob = await response.blob();
-    
-    if (navigator.share && navigator.canShare) {
-      const fileName = `${video.context?.custom?.title || video.display_name}.${video.format}`;
-      const file = new File([blob], fileName, { type: `video/${video.format}` });
-      
-      if (navigator.canShare({ files: [file] })) {
-        try {
-          await navigator.share({
-            title: video.context?.custom?.title || video.display_name,
-            text: `${video.context?.alt || video.metadata?.legenda}`,
-            files: [file]
-          });
-          console.log('✅ Vídeo compartilhado com sucesso');
-          return;
-        } catch (shareError) {
-          console.log('ℹ️ Usuário cancelou compartilhamento ou erro:', shareError);
-        }
-      }
+    const fileName = `${video.context?.custom?.title || video.display_name}.${video.format}`;
+    const file = new File([blob], fileName, { type: `video/${video.format}` });
+    if (navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
+      await navigator.share({
+        title: video.context?.custom?.title || video.display_name,
+        text: video.context?.custom?.caption || '',
+        files: [file]
+      });
     }
-    
-    const blobUrl = URL.createObjectURL(blob);
-    const tempLink = document.createElement('a');
-    tempLink.href = blobUrl;
-    tempLink.download = `${video.context?.custom?.title || video.display_name}.${video.format}`;
-    tempLink.click();
-    
-    // Não usar alert, apenas log para o desenvolvedor
-    console.log('📱 Vídeo baixado com sucesso! Arquivo salvo na pasta Downloads.');
-    
-    setTimeout(() => URL.revokeObjectURL(blobUrl), 1000);
-    
   } catch (error) {
-    console.error('❌ Erro ao baixar vídeo:', error);
-    
-    // Chamar callback de erro ao invés de usar confirm
-    if (onError) {
-      onError();
-    }
+    // Não faz nada se falhar
   }
 };
 
@@ -260,14 +182,16 @@ const WhatsAppShareOptions: React.FC<WhatsAppShareOptionsProps> = ({ video, size
   const handleDownloadAndShare = async () => {
     setDownloading(true);
     try {
-      await downloadAndShareVideo(video, () => {
-        // Callback de erro - mostrar modal ao invés de confirm
-        showErrorModal(
-          'Erro no Download',
-          'Não foi possível baixar o vídeo para compartilhar.\n\nDeseja enviar o link do vídeo pelo WhatsApp?',
-          () => shareOnWhatsApp(video)
-        );
-      });
+      // Originalmente, esta função tinha lógica de download e compartilhamento.
+      // Agora, ela apenas chama a função de compartilhamento webShare.
+      await shareVideoViaWebShare(video);
+    } catch (error) {
+      // Callback de erro - mostrar modal ao invés de confirm
+      showErrorModal(
+        'Erro no Download',
+        'Não foi possível baixar o vídeo para compartilhar.\n\nDeseja enviar o link do vídeo pelo WhatsApp?',
+        () => shareVideoViaWebShare(video)
+      );
     } finally {
       setDownloading(false);
       setShowOptions(false);
@@ -275,7 +199,7 @@ const WhatsAppShareOptions: React.FC<WhatsAppShareOptionsProps> = ({ video, size
   };
   
   const handleShareLink = () => {
-    shareOnWhatsApp(video);
+    shareVideoViaWebShare(video);
     setShowOptions(false);
   };
   
@@ -363,56 +287,6 @@ const WhatsAppShareOptions: React.FC<WhatsAppShareOptionsProps> = ({ video, size
         cancelText="Cancelar"
       />
     </>
-  );
-};
-
-// ✅ COMPONENTE SIMPLES DE WHATSAPP
-interface WhatsAppButtonProps {
-  video: CloudinaryVideo;
-  size?: 'small' | 'medium' | 'large';
-  variant?: 'primary' | 'secondary' | 'minimal';
-}
-
-const WhatsAppButton: React.FC<WhatsAppButtonProps> = ({ 
-  video, 
-  size = 'medium', 
-  variant = 'secondary'
-}) => {
-  const sizeClasses = {
-    small: 'px-2 py-1 text-xs',
-    medium: 'px-3 py-2 text-sm',
-    large: 'px-4 py-3 text-base'
-  };
-
-  const variantClasses = {
-    primary: 'bg-green-600 text-white hover:bg-green-700',
-    secondary: 'bg-white text-green-600 border border-green-600 hover:bg-green-50',
-    minimal: 'text-green-600 hover:text-green-700 hover:bg-green-50'
-  };
-
-  const iconSize = {
-    small: 'w-3 h-3',
-    medium: 'w-4 h-4',
-    large: 'w-5 h-5'
-  };
-
-  return (
-    <button
-      onClick={(e) => {
-        e.stopPropagation();
-        shareOnWhatsApp(video);
-      }}
-      className={`
-        ${sizeClasses[size]} 
-        ${variantClasses[variant]}
-        rounded transition-colors flex items-center justify-center gap-2
-        ${variant === 'minimal' ? 'p-2' : ''}
-      `}
-      title="Compartilhar no WhatsApp"
-    >
-      <MessageCircle className={iconSize[size]} />
-      {variant !== 'minimal' && (size === 'large' ? 'Compartilhar no WhatsApp' : 'WhatsApp')}
-    </button>
   );
 };
 
@@ -509,7 +383,10 @@ class CloudinaryClient {
 
   constructor() {
     this.cloudName = CLOUDINARY_CLOUD_NAME;
-    this.backendUrl = 'https://api.carboncontent.carlosmachado.tech';
+    this.backendUrl =
+      window.location.hostname === 'localhost'
+        ? 'http://localhost:5001'
+        : 'https://api.carboncontent.carlosmachado.tech';
   }
 
   async searchVideos(searchTerm: string): Promise<CloudinaryVideo[]> {
@@ -1089,6 +966,28 @@ const VideoApp = () => {
     }
   };
 
+  // ✅ FUNÇÕES PARA WHATSAPP
+  // Remover: generateWhatsAppMessage, shareOnWhatsApp, downloadAndShareVideo, WhatsAppShareOptions, WhatsAppButton
+  // Manter apenas shareVideoViaWebShare
+  const shareVideoViaWebShare = async (video: CloudinaryVideo) => {
+    try {
+      const response = await fetch(video.secure_url);
+      if (!response.ok) throw new Error('Erro ao baixar vídeo');
+      const blob = await response.blob();
+      const fileName = `${video.context?.custom?.title || video.display_name}.${video.format}`;
+      const file = new File([blob], fileName, { type: `video/${video.format}` });
+      if (navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
+        await navigator.share({
+          title: video.context?.custom?.title || video.display_name,
+          text: video.context?.custom?.caption || '',
+          files: [file]
+        });
+      }
+    } catch (error) {
+      // Não faz nada se falhar
+    }
+  };
+
   // Se não estiver logado, mostrar apenas tela de login
   if (!user) {
     return (
@@ -1508,7 +1407,7 @@ const VideoApp = () => {
                    )}
                    
                    {/* Informações técnicas */}
-                   <div className="text-xs text-gray-500 mb-3 flex items-center gap-3 mt-auto">
+                   <div className="text-xs text-gray-500 mb-3 flex items-center gap-3 grow mt-auto">
                     {video.format && (
                        <span className="flex items-center gap-1">
                          <Calendar className="w-3 h-3" />
@@ -1548,24 +1447,10 @@ const VideoApp = () => {
                      <button
                        onClick={(e) => {
                          e.stopPropagation();
-                         const videoSizeMB = video.bytes ? (video.bytes / (1024 * 1024)) : 0;
-                         
-                         // Se arquivo é pequeno (≤16MB), tenta compartilhar arquivo, senão envia link
-                         if (videoSizeMB > 0 && videoSizeMB <= 16) {
-                           downloadAndShareVideo(video, () => {
-                             // Se falhar, envia link como fallback
-                             shareOnWhatsApp(video);
-                           });
-                         } else {
-                           // Arquivo muito grande ou tamanho desconhecido - envia link
-                           shareOnWhatsApp(video);
-                         }
+                         shareVideoViaWebShare(video);
                        }}
                        className="flex-1 bg-green-600 text-white px-3 py-2 rounded text-sm hover:bg-green-700 transition-colors flex items-center justify-center gap-2"
-                       title={video.bytes && (video.bytes / (1024 * 1024)) <= 16 
-                         ? "Compartilhar arquivo no WhatsApp" 
-                         : "Compartilhar link no WhatsApp"
-                       }
+                       title="Compartilhar arquivo no WhatsApp"
                      >
                        <MessageCircle className="w-4 h-4" />
                        WhatsApp
@@ -1690,24 +1575,10 @@ const VideoApp = () => {
                    {/* Botão WhatsApp inteligente */}
                    <button
                      onClick={() => {
-                       const videoSizeMB = selectedVideo.bytes ? (selectedVideo.bytes / (1024 * 1024)) : 0;
-                       
-                       // Se arquivo é pequeno (≤16MB), tenta compartilhar arquivo, senão envia link
-                       if (videoSizeMB > 0 && videoSizeMB <= 16) {
-                         downloadAndShareVideo(selectedVideo, () => {
-                           // Se falhar, envia link como fallback
-                           shareOnWhatsApp(selectedVideo);
-                         });
-                       } else {
-                         // Arquivo muito grande ou tamanho desconhecido - envia link
-                         shareOnWhatsApp(selectedVideo);
-                       }
+                       shareVideoViaWebShare(selectedVideo);
                      }}
                      className="bg-green-600 text-white px-4 py-3 rounded hover:bg-green-700 transition-colors flex items-center justify-center gap-2 min-h-[44px]"
-                     title={selectedVideo.bytes && (selectedVideo.bytes / (1024 * 1024)) <= 16 
-                       ? "Compartilhar arquivo no WhatsApp" 
-                       : "Compartilhar link no WhatsApp"
-                     }
+                     title="Compartilhar arquivo no WhatsApp"
                    >
                      <MessageCircle className="w-4 h-4" />
                      WhatsApp
