@@ -1,12 +1,44 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { 
-  Search, X, Filter, Upload, Library, Play, Loader2, 
-  Download, Calendar, Clock, Hash, ChevronDown, 
-  AlertCircle, LogOut, MessageCircle, Share2
+  Search, 
+  Download, 
+  Play, 
+  Clock, 
+  HardDrive, 
+  Film, 
+  X, 
+  Calendar,
+  AlertCircle,
+  Loader2,
+  User,
+  LogOut,
+  Video,
+  Library,
+  Hash,
+  Car,
+  Tag,
+  Filter,
+  MessageCircle, // ✅ NOVO ÍCONE PARA WHATSAPP
+  Share2,        // ✅ ÍCONE ALTERNATIVO
+  ExternalLink   // ✅ ÍCONE PARA LINK EXTERNO
 } from 'lucide-react';
-import './App.css';
 
-// Interfaces
+// Configuração do Supabase (usando REST API)
+const SUPABASE_URL = 'https://sfkxgmxchziyfvdeybdl.supabase.co';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNma3hnbXhjaHppeWZ2ZGV5YmRsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTE4OTEyMTAsImV4cCI6MjA2NzQ2NzIxMH0.F744lM-ovsBKDANBSzmGb3iMUCYWy4mrcGNDzuZs51E';
+
+// Configuração do Cloudinary
+const CLOUDINARY_CLOUD_NAME = 'carboncars';
+
+// Interfaces TypeScript
+interface User {
+  id: string;
+  email: string;
+  user_metadata?: {
+    name?: string;
+  };
+}
+
 interface CloudinaryVideo {
   public_id: string;
   display_name: string;
@@ -16,74 +48,414 @@ interface CloudinaryVideo {
   secure_url: string;
   created_at: string;
   tags: string[];
-  metadata?: {
-    legenda?: string;
-  };
   context?: {
+    alt?: string;
     custom?: {
-      title?: string;
       caption?: string;
-      montadora?: string;
-      tipo?: string;
+      title?: string;
     };
+    [key: string]: any;
+  };
+  metadata?: {
+    validade?: string;
+    acesso_grupo_iesa?: string;
+    legenda?: string;
+    montadora?: string;
+    [key: string]: any;
   };
 }
 
-interface User {
-  id: string;
-  email: string;
+interface ApiResponse<T> {
+  data: T;
+  error: any;
 }
 
-// Configurações
-const CLOUDINARY_CLOUD_NAME = 'dwi8kiqq5';
-const SUPABASE_URL = 'https://dmrdhhmwxwhhpibqzbyf.supabase.co';
-const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRtcmRoaG13eHdoaHBpYnF6YnlmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3MjQ5NTY1MTMsImV4cCI6MjA0MDUzMjUxM30.JkQN5JAkOrsaU5bFLhvdJKKj8NVGOug86cR_tBluJmI';
+// ✅ FUNÇÕES PARA WHATSAPP
+const generateWhatsAppMessage = (video: CloudinaryVideo): string => {
+  const title = video.context?.custom?.title || video.display_name || 'Vídeo CARBON';
+  const montadora = video.metadata?.montadora ? video.metadata.montadora.toUpperCase() : '';
+  const legenda = video.metadata?.legenda || video.context?.custom?.caption || '';
+  const tags = video.tags && video.tags.length > 0 ? video.tags.join(', ') : '';
+  
+  let message = `🎬 *${title}*\n\n`;
+  
+  if (montadora) {
+    message += `🚗 *Montadora:* ${montadora}\n\n`;
+  }
+  
+  if (legenda) {
+    message += `📝 *Descrição:* ${legenda}\n\n`;
+  }
+  
+  if (tags) {
+    message += `🏷️ *Tags:* ${tags}\n\n`;
+  }
+  
+  message += `🔗 *Assistir:* ${video.secure_url}\n\n`;
+  message += `📅 *Compartilhado via CARBON Content*`;
+  
+  return encodeURIComponent(message);
+};
 
-// Classe simplificada para autenticação
+const shareOnWhatsApp = (video: CloudinaryVideo, phoneNumber?: string) => {
+  const message = generateWhatsAppMessage(video);
+  
+  if (phoneNumber) {
+    const cleanPhone = phoneNumber.replace(/[^\d]/g, '');
+    const whatsappUrl = `https://wa.me/${cleanPhone}?text=${message}`;
+    window.open(whatsappUrl, '_blank');
+  } else {
+    const whatsappUrl = `https://wa.me/?text=${message}`;
+    window.open(whatsappUrl, '_blank');
+  }
+};
+
+const downloadAndShareVideo = async (video: CloudinaryVideo, onError?: () => void) => {
+  try {
+    console.log('📥 Baixando vídeo para compartilhar...');
+    
+    const videoSizeMB = video.bytes ? (video.bytes / (1024 * 1024)) : 0;
+    
+    if (videoSizeMB > 16) {
+      // Usar callback para mostrar modal personalizado ao invés de alert
+      if (onError) {
+        onError();
+      }
+      shareOnWhatsApp(video);
+      return;
+    }
+    
+    const response = await fetch(video.secure_url);
+    if (!response.ok) throw new Error('Erro ao baixar vídeo');
+    
+    const blob = await response.blob();
+    
+    if (navigator.share && navigator.canShare) {
+      const fileName = `${video.context?.custom?.title || video.display_name}.${video.format}`;
+      const file = new File([blob], fileName, { type: `video/${video.format}` });
+      
+      if (navigator.canShare({ files: [file] })) {
+        try {
+          await navigator.share({
+            title: video.context?.custom?.title || video.display_name,
+            text: `${video.context?.alt || video.metadata?.legenda}`,
+            files: [file]
+          });
+          console.log('✅ Vídeo compartilhado com sucesso');
+          return;
+        } catch (shareError) {
+          console.log('ℹ️ Usuário cancelou compartilhamento ou erro:', shareError);
+        }
+      }
+    }
+    
+    const blobUrl = URL.createObjectURL(blob);
+    const tempLink = document.createElement('a');
+    tempLink.href = blobUrl;
+    tempLink.download = `${video.context?.custom?.title || video.display_name}.${video.format}`;
+    tempLink.click();
+    
+    // Não usar alert, apenas log para o desenvolvedor
+    console.log('📱 Vídeo baixado com sucesso! Arquivo salvo na pasta Downloads.');
+    
+    setTimeout(() => URL.revokeObjectURL(blobUrl), 1000);
+    
+  } catch (error) {
+    console.error('❌ Erro ao baixar vídeo:', error);
+    
+    // Chamar callback de erro ao invés de usar confirm
+    if (onError) {
+      onError();
+    }
+  }
+};
+
+// ✅ COMPONENTE DE MODAL PARA CONFIRMAÇÕES
+interface ConfirmModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  onConfirm: () => void;
+  title: string;
+  message: string;
+  confirmText?: string;
+  cancelText?: string;
+}
+
+const ConfirmModal: React.FC<ConfirmModalProps> = ({
+  isOpen,
+  onClose,
+  onConfirm,
+  title,
+  message,
+  confirmText = 'Sim',
+  cancelText = 'Cancelar'
+}) => {
+  if (!isOpen) return null;
+
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-lg w-full max-w-md">
+        <div className="p-6">
+          <div className="flex items-center mb-4">
+            <AlertCircle className="w-6 h-6 text-orange-500 mr-3" />
+            <h3 className="text-lg font-bold text-gray-800">{title}</h3>
+          </div>
+          
+          <p className="text-gray-600 mb-6 whitespace-pre-line">{message}</p>
+          
+          <div className="flex gap-3 justify-end">
+            <button
+              onClick={onClose}
+              className="px-4 py-2 text-gray-600 border border-gray-300 rounded hover:bg-gray-50 transition-colors"
+            >
+              {cancelText}
+            </button>
+            <button
+              onClick={() => {
+                onConfirm();
+                onClose();
+              }}
+              className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 transition-colors"
+            >
+              {confirmText}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+interface WhatsAppShareOptionsProps {
+  video: CloudinaryVideo;
+  size?: 'small' | 'medium' | 'large';
+}
+
+// ✅ COMPONENTE COM OPÇÕES DE COMPARTILHAMENTO
+interface WhatsAppShareOptionsProps {
+  video: CloudinaryVideo;
+  size?: 'small' | 'medium' | 'large';
+}
+
+const WhatsAppShareOptions: React.FC<WhatsAppShareOptionsProps> = ({ video, size = 'medium' }) => {
+  const [showOptions, setShowOptions] = useState(false);
+  const [downloading, setDownloading] = useState(false);
+  const [showConfirmModal, setShowConfirmModal] = useState(false);
+  const [confirmModalProps, setConfirmModalProps] = useState({
+    title: '',
+    message: '',
+    onConfirm: () => {}
+  });
+  
+  const videoSizeMB = video.bytes ? (video.bytes / (1024 * 1024)) : 0;
+  
+  const showErrorModal = (title: string, message: string, onConfirm?: () => void) => {
+    setConfirmModalProps({
+      title,
+      message,
+      onConfirm: onConfirm || (() => {})
+    });
+    setShowConfirmModal(true);
+  };
+  
+  const handleDownloadAndShare = async () => {
+    setDownloading(true);
+    try {
+      await downloadAndShareVideo(video, () => {
+        // Callback de erro - mostrar modal ao invés de confirm
+        showErrorModal(
+          'Erro no Download',
+          'Não foi possível baixar o vídeo para compartilhar.\n\nDeseja enviar o link do vídeo pelo WhatsApp?',
+          () => shareOnWhatsApp(video)
+        );
+      });
+    } finally {
+      setDownloading(false);
+      setShowOptions(false);
+    }
+  };
+  
+  const handleShareLink = () => {
+    shareOnWhatsApp(video);
+    setShowOptions(false);
+  };
+  
+  return (
+    <>
+      <div className="relative">
+        <button
+          onClick={() => setShowOptions(!showOptions)}
+          className={`
+            ${size === 'small' ? 'px-2 py-1 text-xs' : size === 'large' ? 'px-4 py-3 text-base' : 'px-3 py-2 text-sm'}
+            bg-green-600 text-white rounded hover:bg-green-700 transition-colors flex items-center justify-center gap-2
+          `}
+          title="Opções de compartilhamento WhatsApp"
+        >
+          <MessageCircle className={size === 'small' ? 'w-3 h-3' : size === 'large' ? 'w-5 h-5' : 'w-4 h-4'} />
+          {size !== 'small' && 'WhatsApp'}
+          {showOptions ? (
+            <X className="w-3 h-3" />
+          ) : (
+            <ExternalLink className="w-3 h-3" />
+          )}
+        </button>
+        
+        {showOptions && (
+          <div className="absolute top-full right-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg z-20 min-w-48">
+            <div className="p-2">
+              <div className="text-xs text-gray-500 mb-2 px-2">
+                Tamanho: {videoSizeMB > 0 ? `${videoSizeMB.toFixed(1)}MB` : 'Desconhecido'}
+              </div>
+              
+              {videoSizeMB <= 16 && videoSizeMB > 0 && (
+                <button
+                  onClick={handleDownloadAndShare}
+                  disabled={downloading}
+                  className="w-full text-left px-3 py-2 hover:bg-gray-50 rounded flex items-center gap-2 text-sm disabled:opacity-50"
+                >
+                  {downloading ? (
+                    <Loader2 className="w-4 h-4 animate-spin text-green-600" />
+                  ) : (
+                    <Download className="w-4 h-4 text-green-600" />
+                  )}
+                  <div>
+                    <div className="font-medium">Compartilhar arquivo</div>
+                    <div className="text-xs text-gray-500">Baixa e compartilha o vídeo</div>
+                  </div>
+                </button>
+              )}
+              
+              {videoSizeMB > 16 && (
+                <div className="px-3 py-2 text-xs text-orange-600 bg-orange-50 rounded mb-2">
+                  ⚠️ Arquivo muito grande para WhatsApp (limite: 16MB)
+                </div>
+              )}
+              
+              <button
+                onClick={handleShareLink}
+                className="w-full text-left px-3 py-2 hover:bg-gray-50 rounded flex items-center gap-2 text-sm"
+              >
+                <Share2 className="w-4 h-4 text-green-600" />
+                <div>
+                  <div className="font-medium">Compartilhar link</div>
+                  <div className="text-xs text-gray-500">Envia URL para assistir online</div>
+                </div>
+              </button>
+            </div>
+          </div>
+        )}
+        
+        {showOptions && (
+          <div 
+            className="fixed inset-0 z-10" 
+            onClick={() => setShowOptions(false)}
+          />
+        )}
+      </div>
+
+      {/* Modal de confirmação personalizado */}
+      <ConfirmModal
+        isOpen={showConfirmModal}
+        onClose={() => setShowConfirmModal(false)}
+        onConfirm={confirmModalProps.onConfirm}
+        title={confirmModalProps.title}
+        message={confirmModalProps.message}
+        confirmText="Enviar Link"
+        cancelText="Cancelar"
+      />
+    </>
+  );
+};
+
+// ✅ COMPONENTE SIMPLES DE WHATSAPP
+interface WhatsAppButtonProps {
+  video: CloudinaryVideo;
+  size?: 'small' | 'medium' | 'large';
+  variant?: 'primary' | 'secondary' | 'minimal';
+}
+
+const WhatsAppButton: React.FC<WhatsAppButtonProps> = ({ 
+  video, 
+  size = 'medium', 
+  variant = 'secondary'
+}) => {
+  const sizeClasses = {
+    small: 'px-2 py-1 text-xs',
+    medium: 'px-3 py-2 text-sm',
+    large: 'px-4 py-3 text-base'
+  };
+
+  const variantClasses = {
+    primary: 'bg-green-600 text-white hover:bg-green-700',
+    secondary: 'bg-white text-green-600 border border-green-600 hover:bg-green-50',
+    minimal: 'text-green-600 hover:text-green-700 hover:bg-green-50'
+  };
+
+  const iconSize = {
+    small: 'w-3 h-3',
+    medium: 'w-4 h-4',
+    large: 'w-5 h-5'
+  };
+
+  return (
+    <button
+      onClick={(e) => {
+        e.stopPropagation();
+        shareOnWhatsApp(video);
+      }}
+      className={`
+        ${sizeClasses[size]} 
+        ${variantClasses[variant]}
+        rounded transition-colors flex items-center justify-center gap-2
+        ${variant === 'minimal' ? 'p-2' : ''}
+      `}
+      title="Compartilhar no WhatsApp"
+    >
+      <MessageCircle className={iconSize[size]} />
+      {variant !== 'minimal' && (size === 'large' ? 'Compartilhar no WhatsApp' : 'WhatsApp')}
+    </button>
+  );
+};
+
+// Classe para gerenciar autenticação
 class SupabaseClient {
   private url: string;
-  private anonKey: string;
-  private token: string | null = null;
+  private key: string;
+  private token: string | null;
 
-  constructor(url: string, anonKey: string) {
-    this.url = url;
-    this.anonKey = anonKey;
+  constructor() {
+    this.url = SUPABASE_URL;
+    this.key = SUPABASE_ANON_KEY;
     this.token = localStorage.getItem('supabase_token');
   }
 
-  private getHeaders() {
-    return {
-      'apikey': this.anonKey,
-      'Authorization': `Bearer ${this.token || this.anonKey}`,
-      'Content-Type': 'application/json'
+  private getHeaders(includeAuth: boolean = true): Record<string, string> {
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+      'apikey': this.key,
+      'Authorization': `Bearer ${this.key}`
     };
+
+    if (includeAuth && this.token) {
+      headers['Authorization'] = `Bearer ${this.token}`;
+    }
+
+    return headers;
   }
 
-  async signIn(email: string, password: string): Promise<{ data: { user: User, session: any }, error: any }> {
+  async signIn(email: string, password: string): Promise<ApiResponse<{user: User, access_token: string}>> {
     try {
       const response = await fetch(`${this.url}/auth/v1/token?grant_type=password`, {
         method: 'POST',
-        headers: this.getHeaders(),
+        headers: this.getHeaders(false),
         body: JSON.stringify({ email, password })
       });
 
       const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.msg || data.error_description || 'Erro de autenticação');
-      }
+      
+      if (data.error) throw new Error(data.error.message);
 
       this.token = data.access_token;
-      const userResponse = await fetch(`${this.url}/auth/v1/user`, {
-        headers: this.getHeaders()
-      });
-      const userData = await userResponse.json();
-
-      const result = {
-        user: userData,
-        session: data
-      };
-
+      
       if (this.token && data.user) {
         localStorage.setItem('supabase_token', this.token);
         localStorage.setItem('supabase_user', JSON.stringify(data.user));
@@ -234,158 +606,311 @@ class CloudinaryClient {
         secure_url: resource.secure_url,
         created_at: resource.created_at,
         tags: Array.isArray(resource.tags) ? resource.tags : [],
-        metadata: resource.metadata || {},
-        context: resource.context || {}
+        context: resource.context || {},
+        metadata: resource.metadata || {}
       };
     });
   }
 }
 
-// Funções auxiliares
-const formatDuration = (seconds: number): string => {
-  if (seconds < 60) return `${seconds}s`;
-  const minutes = Math.floor(seconds / 60);
-  const remainingSeconds = seconds % 60;
-  return `${minutes}:${remainingSeconds.toString().padStart(2, '0')}`;
-};
+// Componente de Thumbnail com Loading
+interface VideoThumbnailProps {
+  video: CloudinaryVideo;
+  onClick: () => void;
+}
 
-const formatFileSize = (bytes: number): string => {
-  if (bytes === 0) return '0 Bytes';
-  const k = 1024;
-  const sizes = ['Bytes', 'KB', 'MB', 'GB'];
-  const i = Math.floor(Math.log(bytes) / Math.log(k));
-  return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
-};
+const VideoThumbnail: React.FC<VideoThumbnailProps> = ({ video, onClick }) => {
+  const [imageLoading, setImageLoading] = useState(true);
+  const [imageError, setImageError] = useState(false);
 
-// Função para compartilhar vídeo
-const shareVideo = async (video: CloudinaryVideo) => {
-  try {
-    // Check if Web Share API is available
-    if (navigator.share && navigator.canShare) {
-      // Fetch video as blob
-      const response = await fetch(video.secure_url);
-      const blob = await response.blob();
-      const file = new File([blob], `${video.public_id}.mp4`, { type: 'video/mp4' });
+  const getThumbnailUrl = (width: number = 400, height: number = 225) => {
+    return `https://res.cloudinary.com/${CLOUDINARY_CLOUD_NAME}/video/upload/w_${width},h_${height},c_fill,q_auto,f_auto,so_0/${video.public_id}.jpg`;
+  };
 
-      // Test if we can share files
-      if (navigator.canShare({ files: [file] })) {
-        await navigator.share({
-          files: [file],
-          title: 'Compartilhar vídeo',
-          text: 'Confira este vídeo!'
-        });
-      } else {
-        // Fallback to URL sharing
-        await navigator.share({
-          title: 'Compartilhar vídeo',
-          text: 'Confira este vídeo!',
-          url: video.secure_url
-        });
-      }
+  const thumbnailUrl = getThumbnailUrl(400, 225);
+  const fallbackUrl = getThumbnailUrl(400, 225).replace('so_0', 'so_1');
+  const lowQualityUrl = getThumbnailUrl(200, 113);
+
+  const handleImageLoad = () => {
+    setImageLoading(false);
+  };
+
+  const handleImageError = (e: React.SyntheticEvent<HTMLImageElement>) => {
+    const target = e.target as HTMLImageElement;
+    
+    if (!imageError) {
+      console.log(`⚠️ Erro na thumbnail principal para ${video.public_id}, tentando fallback...`);
+      setImageError(true);
+      target.src = fallbackUrl;
     } else {
-      // If Web Share API is not available, show error message
-      alert('Seu navegador não suporta compartilhamento direto. Por favor, use um navegador móvel atualizado.');
+      console.log(`❌ Fallback também falhou para ${video.public_id}`);
+      setImageLoading(false);
     }
-  } catch (error) {
-    console.error('Erro ao compartilhar:', error);
-    // User cancelled or error occurred
-    if (typeof error === 'object' && error !== null && 'name' in error && (error as any).name !== 'AbortError') {
-      alert('Erro ao compartilhar o vídeo. Tente novamente.');
-    }
-  }
+  };
+
+  return (
+    <div className="relative cursor-pointer group" onClick={onClick}>
+      {imageLoading && (
+        <div className="w-full h-48 bg-gradient-to-br from-gray-100 to-gray-200 flex items-center justify-center animate-pulse">
+          <div className="text-center">
+            <Film className="w-8 h-8 text-gray-400 mx-auto mb-2" />
+            <div className="text-xs text-gray-500">Carregando...</div>
+          </div>
+        </div>
+      )}
+      
+      <img
+        src={lowQualityUrl}
+        alt=""
+        className={`absolute inset-0 w-full h-48 object-cover transition-opacity duration-300 ${
+          imageLoading ? 'opacity-100' : 'opacity-0'
+        }`}
+        loading="lazy"
+      />
+      
+      <img
+        src={thumbnailUrl}
+        alt={video.context?.custom?.title || video.display_name}
+        className={`w-full h-48 object-cover transition-opacity duration-300 ${
+          imageLoading ? 'opacity-0' : 'opacity-100'
+        }`}
+        loading="lazy"
+        onLoad={handleImageLoad}
+        onError={handleImageError}
+      />
+      
+      {!imageLoading && imageError && (
+        <div className="absolute inset-0 w-full h-48 bg-gradient-to-br from-blue-100 to-blue-200 flex items-center justify-center">
+          <div className="text-center">
+            <Video className="w-8 h-8 text-blue-600 mx-auto mb-2" />
+            <div className="text-xs text-blue-700 font-medium">Vídeo</div>
+          </div>
+        </div>
+      )}
+      
+      <div className="absolute inset-0 bg-gradient-to-t from-black/50 via-transparent to-transparent opacity-0 group-hover:opacity-100 flex items-center justify-center transition-all duration-300 ease-in-out">
+      </div>
+      
+      <div className="absolute inset-0 flex items-center justify-center">
+        <div className="bg-white bg-opacity-25 backdrop-blur-sm rounded-xl py-3 px-6 transform group-hover:scale-110 transition-all duration-300 shadow-lg">
+          <Play className="text-white w-8 h-8 fill-current transform translate-x-0.5" />
+        </div>
+      </div>
+      
+      <div className="absolute top-3 right-3 bg-black/80 backdrop-blur-sm text-white text-xs px-2.5 py-1 rounded-full font-medium">
+        {video.duration ? `${Math.floor(video.duration / 60).toString().padStart(2, '0')}:${Math.floor(video.duration % 60).toString().padStart(2, '0')}` : '--:--'}
+      </div>
+      
+      <div className="absolute inset-0 border-2 border-transparent group-hover:border-blue-500/50 rounded-lg transition-colors duration-300 pointer-events-none"></div>
+    </div>
+  );
 };
 
-// Componente principal
-function App() {
-  // Estados
+const VideoApp = () => {
   const [user, setUser] = useState<User | null>(null);
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [authError, setAuthError] = useState('');
   const [videos, setVideos] = useState<CloudinaryVideo[]>([]);
-  const [filteredVideos, setFilteredVideos] = useState<CloudinaryVideo[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [selectedVideo, setSelectedVideo] = useState<CloudinaryVideo | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedMontadora, setSelectedMontadora] = useState('');
   const [selectedTag, setSelectedTag] = useState('');
-  const [selectedVideo, setSelectedVideo] = useState<CloudinaryVideo | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [downloadingVideos, setDownloadingVideos] = useState<Set<string>>(new Set());
+  const [availableMontadoras, setAvailableMontadoras] = useState<string[]>([]);
+  const [availableTags, setAvailableTags] = useState<string[]>([]);
+  const supabase = useRef(new SupabaseClient());
+  const cloudinary = useRef(new CloudinaryClient());
+
+  // Estados do formulário de login
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [authError, setAuthError] = useState('');
   const [isLoggingIn, setIsLoggingIn] = useState(false);
+  
+  // Estado para controlar downloads em andamento
+  const [downloadingVideos, setDownloadingVideos] = useState<Set<string>>(new Set());
 
-  // Refs
-  const supabase = useRef(new SupabaseClient(SUPABASE_URL, SUPABASE_ANON_KEY)).current;
-  const cloudinary = useRef(new CloudinaryClient()).current;
-
-  // Verifica autenticação ao carregar
+  // Verificar usuário logado ao carregar
   useEffect(() => {
-    const currentUser = supabase.getUser();
-    if (currentUser) {
-      setUser(currentUser);
+    try {
+      const storedUser = supabase.current.getUser();
+      if (storedUser) {
+        console.log('✅ Usuário encontrado no localStorage:', storedUser.email);
+        setUser(storedUser);
+      } else {
+        console.log('ℹ️ Nenhum usuário logado encontrado');
+      }
+    } catch (error) {
+      console.error('❌ Erro ao verificar usuário logado:', error);
+      localStorage.removeItem('supabase_user');
+      localStorage.removeItem('supabase_token');
     }
   }, []);
 
-  // Carrega vídeos quando o usuário está autenticado
+  // Verificar conexão com backend ao carregar
+  useEffect(() => {
+    const checkBackend = async () => {
+      const isConnected = await cloudinary.current.testConnection();
+      if (!isConnected) {
+        console.warn('⚠️ Backend não está rodando!');
+      }
+    };
+    
+    checkBackend();
+  }, []);
+
+  // Carregar vídeos do Cloudinary quando usuário logar
   useEffect(() => {
     if (user) {
       loadAllVideos();
     }
   }, [user]);
 
-  // Filtra vídeos localmente quando algum filtro muda
-  useEffect(() => {
-    let filtered = [...videos];
+  // Funções para extrair montadoras e tags
+  const extractMontadoras = (videos: CloudinaryVideo[]): string[] => {
+    const montadoras = new Set<string>();
     
-    // Filtro por montadora
-    if (selectedMontadora) {
-      filtered = filtered.filter(video => {
-        const montadora = video.context?.custom?.montadora?.toLowerCase();
-        return montadora === selectedMontadora.toLowerCase();
-      });
-    }
+    videos.forEach(video => {
+      const montadora = video.metadata?.montadora;
+      if (montadora && montadora.trim()) {
+        montadoras.add(montadora.trim());
+      }
+    });
     
-    // Filtro por tag
-    if (selectedTag) {
-      filtered = filtered.filter(video => 
-        video.tags.includes(selectedTag)
-      );
-    }
-    
-    setFilteredVideos(filtered);
-  }, [videos, selectedMontadora, selectedTag]);
+    return Array.from(montadoras).sort();
+  };
 
-  // Função para carregar todos os vídeos
-  const loadAllVideos = async () => {
-    setLoading(true);
-    setVideos([]);
+  const extractTags = (videos: CloudinaryVideo[]): string[] => {
+    const tags = new Set<string>();
     
+    videos.forEach(video => {
+      if (Array.isArray(video.tags)) {
+        video.tags.forEach(tag => {
+          if (tag && tag.trim()) {
+            tags.add(tag.trim());
+          }
+        });
+      }
+    });
+    
+    return Array.from(tags).sort();
+  };
+
+  // Funções de filtro
+  const filterVideosByMontadora = (videos: CloudinaryVideo[], montadora: string): CloudinaryVideo[] => {
+    if (!montadora) return videos;
+    
+    return videos.filter(video => {
+      const videoMontadora = video.metadata?.montadora;
+      return videoMontadora && videoMontadora.toLowerCase().includes(montadora.toLowerCase());
+    });
+  };
+
+  const filterVideosByTag = (videos: CloudinaryVideo[], tag: string): CloudinaryVideo[] => {
+    if (!tag) return videos;
+    
+    return videos.filter(video => {
+      return Array.isArray(video.tags) && video.tags.some(videoTag => 
+        videoTag.toLowerCase().includes(tag.toLowerCase())
+      );
+    });
+  };
+
+  const filterVideosBySearchTerm = (videos: CloudinaryVideo[], searchTerm: string): CloudinaryVideo[] => {
+    if (!searchTerm) return videos;
+    
+    const term = searchTerm.toLowerCase();
+    
+    return videos.filter(video => {
+      const title = video.context?.custom?.title || video.display_name || '';
+      if (title.toLowerCase().includes(term)) return true;
+      
+      const legenda = video.metadata?.legenda || video.context?.custom?.caption || '';
+      if (legenda.toLowerCase().includes(term)) return true;
+      
+      if (Array.isArray(video.tags)) {
+        const hasMatchingTag = video.tags.some(tag => 
+          tag.toLowerCase().includes(term)
+        );
+        if (hasMatchingTag) return true;
+      }
+      
+      const montadora = video.metadata?.montadora || '';
+      if (montadora.toLowerCase().includes(term)) return true;
+      
+      return false;
+    });
+  };
+
+  // Aplicar todos os filtros combinados
+  const getFilteredVideos = (): CloudinaryVideo[] => {
+    let filtered = videos;
+    
+    filtered = filterVideosBySearchTerm(filtered, searchTerm);
+    filtered = filterVideosByMontadora(filtered, selectedMontadora);
+    filtered = filterVideosByTag(filtered, selectedTag);
+    
+    return filtered;
+  };
+
+  const filteredVideos = getFilteredVideos();
+
+  // Extrair montadoras e tags quando vídeos mudarem
+  useEffect(() => {
+    const montadoras = extractMontadoras(videos);
+    const tags = extractTags(videos);
+    
+    setAvailableMontadoras(montadoras);
+    setAvailableTags(tags);
+    
+    console.log('🏭 Montadoras encontradas:', montadoras);
+    console.log('🏷️ Tags encontradas:', tags);
+  }, [videos]);
+
+  // Carregar todos os vídeos
+  const loadAllVideos = async () => {
+    if (!user) return;
+
     try {
-      const allVideos = await cloudinary.getAllVideos();
-      setVideos(allVideos);
+      setLoading(true);
+      console.log('📚 Carregando biblioteca completa...');
+      const cloudinaryVideos = await cloudinary.current.getAllVideos();
+      console.log('✅ Biblioteca carregada:', cloudinaryVideos);
+      setVideos(cloudinaryVideos);
     } catch (error: any) {
-      console.error('Erro ao carregar vídeos:', error);
+      console.error('❌ Erro ao carregar biblioteca:', error);
       
       if (error.message.includes('Backend não está rodando')) {
-        alert('⚠️ Backend não está rodando!\n\n1. Abra um novo terminal\n2. cd backend\n3. npm install\n4. npm run dev');
+        alert('⚠️ Backend não está rodando!\n\nPara resolver:\n1. Abra um novo terminal\n2. cd backend\n3. npm install\n4. npm run dev');
       } else {
-        alert(`Erro ao carregar vídeos: ${error.message}`);
+        alert(`Erro ao carregar biblioteca: ${error.message}`);
       }
+      
+      setVideos([]);
     } finally {
       setLoading(false);
     }
   };
 
-  // Função de busca
+  // Buscar vídeos por termo
   const searchVideos = async (term: string) => {
-    setLoading(true);
-    
+    if (!user) return;
+
     try {
-      const results = await cloudinary.searchVideos(term);
-      setVideos(results);
+      setLoading(true);
+      console.log(`🔍 Buscando vídeos com termo: "${term}"`);
+      
+      if (!term.trim()) {
+        await loadAllVideos();
+        return;
+      }
+      
+      const cloudinaryVideos = await cloudinary.current.searchVideos(term);
+      console.log('✅ Vídeos encontrados:', cloudinaryVideos);
+      setVideos(cloudinaryVideos);
     } catch (error: any) {
-      console.error('Erro na busca:', error);
+      console.error('❌ Erro ao buscar vídeos:', error);
       
       if (error.message.includes('Backend não está rodando')) {
-        alert('⚠️ Backend não está rodando!\n\n1. Abra um novo terminal\n2. cd backend\n3. npm install\n4. npm run dev');
+        alert('⚠️ Backend não está rodando!\n\nPara resolver:\n1. Abra um novo terminal\n2. cd backend\n3. npm install\n4. npm run dev');
       } else {
         alert(`Erro na busca: ${error.message}`);
       }
@@ -426,7 +951,7 @@ function App() {
     
     try {
       console.log('🔑 Tentando fazer login:', email);
-      const result = await supabase.signIn(email, password);
+      const result = await supabase.current.signIn(email, password);
       
       console.log('📥 Resultado do login:', result);
 
@@ -472,64 +997,68 @@ function App() {
         errorMessage = 'Erro desconhecido. Tente novamente.';
       }
       
+      console.log('📝 Mensagem de erro final:', errorMessage);
       setAuthError(errorMessage);
     } finally {
       setIsLoggingIn(false);
     }
   };
 
-  // Logout
   const handleLogout = async () => {
-    await supabase.signOut();
+    await supabase.current.signOut();
     setUser(null);
     setVideos([]);
-    setFilteredVideos([]);
-    setSearchTerm('');
-    setSelectedMontadora('');
-    setSelectedTag('');
   };
 
-  // Download do vídeo
-  const downloadVideo = async (video: CloudinaryVideo) => {
-    setDownloadingVideos(prev => {
-      const newSet = new Set(prev);
-      newSet.add(video.public_id);
-      return newSet;
-    });
-
+  // Download de vídeo forçado
+  const handleDownload = async (video: CloudinaryVideo) => {
     try {
-      const fileName = `${video.context?.custom?.title || video.display_name}.${video.format}`;
+      setDownloadingVideos(prev => new Set(prev).add(video.public_id));
       
-      console.log('📥 Iniciando download:', fileName);
+      console.log('📥 Iniciando download forçado:', video.display_name);
       
-      // Tentar primeiro com fetch + blob
+      const cleanTitle = video.context?.custom?.title || video.display_name || video.public_id;
+      const fileName = `${cleanTitle.replace(/[^a-zA-Z0-9\s\-_]/g, '')}.${video.format}`;
+      
       try {
-        const response = await fetch(video.secure_url);
-        if (!response.ok) throw new Error('Erro ao baixar');
+        console.log('🔄 Tentando download via fetch...');
         
-        const blob = await response.blob();
-        const blobUrl = URL.createObjectURL(blob);
+        const response = await fetch(video.secure_url, {
+          method: 'GET',
+          headers: {
+            'Content-Type': 'application/octet-stream',
+          }
+        });
         
-        const tempLink = document.createElement('a');
-        tempLink.href = blobUrl;
-        tempLink.download = fileName;
-        tempLink.style.display = 'none';
+        if (response.ok) {
+          const blob = await response.blob();
+          
+          const blobUrl = window.URL.createObjectURL(blob);
+          
+          const downloadLink = document.createElement('a');
+          downloadLink.href = blobUrl;
+          downloadLink.download = fileName;
+          downloadLink.style.display = 'none';
+          
+          document.body.appendChild(downloadLink);
+          downloadLink.click();
+          document.body.removeChild(downloadLink);
+          
+          setTimeout(() => {
+            window.URL.revokeObjectURL(blobUrl);
+          }, 1000);
+          
+          console.log('✅ Download via fetch bem-sucedido');
+          return;
+        } else {
+          throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        }
         
-        document.body.appendChild(tempLink);
-        tempLink.click();
-        document.body.removeChild(tempLink);
-        
-        setTimeout(() => URL.revokeObjectURL(blobUrl), 1000);
-        
-        console.log('✅ Download concluído via blob');
-        return;
-        
-      } catch (blobError) {
-        console.log('⚠️ Método blob falhou, tentando fallback...');
+      } catch (fetchError) {
+        console.warn('⚠️ Fetch falhou, tentando método alternativo:', fetchError);
       }
       
-      // Fallback: link direto
-      console.log('📥 Usando método de fallback...');
+      console.log('🔄 Usando método de fallback...');
       
       const fallbackLink = document.createElement('a');
       fallbackLink.href = video.secure_url;
@@ -711,7 +1240,8 @@ function App() {
                  {searchTerm && (
                    <button
                      onClick={() => setSearchTerm('')}
-                     className="absolute right-2 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                     className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors"
+                     title="Limpar busca"
                    >
                      <X className="w-5 h-5" />
                    </button>
@@ -719,98 +1249,118 @@ function App() {
                </div>
              </div>
 
-             {/* Filtro por Montadora */}
+             {/* Filtro por montadora */}
              <div>
                <label className="block text-sm font-medium mb-2">
-                 Filtrar por Montadora
+                 Filtrar por montadora
                </label>
-               <select
-                 value={selectedMontadora}
-                 onChange={(e) => setSelectedMontadora(e.target.value)}
-                 className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-               >
-                 <option value="">Todas as montadoras</option>
-                 <option value="chevrolet">Chevrolet</option>
-                 <option value="fiat">Fiat</option>
-                 <option value="ford">Ford</option>
-                 <option value="honda">Honda</option>
-                 <option value="hyundai">Hyundai</option>
-                 <option value="nissan">Nissan</option>
-                 <option value="toyota">Toyota</option>
-                 <option value="volkswagen">Volkswagen</option>
-               </select>
+               <div className="relative">
+                 <select
+                   value={selectedMontadora}
+                   onChange={(e) => setSelectedMontadora(e.target.value)}
+                   className="w-full p-3 pr-10 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent appearance-none bg-white"
+                 >
+                   <option value="">Todas as montadoras</option>
+                   {availableMontadoras.map((montadora) => (
+                     <option key={montadora} value={montadora}>
+                       {montadora.toUpperCase()}
+                     </option>
+                   ))}
+                 </select>
+                 {selectedMontadora && (
+                   <button
+                     onClick={() => setSelectedMontadora('')}
+                     className="absolute right-8 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors"
+                     title="Limpar filtro de montadora"
+                   >
+                     <X className="w-4 h-4" />
+                   </button>
+                 )}
+                 <div className="absolute right-3 top-1/2 transform -translate-y-1/2 pointer-events-none">
+                   <Car className="w-4 h-4 text-gray-400" />
+                 </div>
+               </div>
              </div>
 
-             {/* Filtro por Tag */}
+             {/* Filtro por tag */}
              <div>
                <label className="block text-sm font-medium mb-2">
-                 Filtrar por Tag
+                 Filtrar por tag
                </label>
-               <select
-                 value={selectedTag}
-                 onChange={(e) => setSelectedTag(e.target.value)}
-                 className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-               >
-                 <option value="">Todas as tags</option>
-                 {Array.from(new Set(videos.flatMap(v => v.tags))).sort().map(tag => (
-                   <option key={tag} value={tag}>{tag}</option>
-                 ))}
-               </select>
+               <div className="relative">
+                 <select
+                   value={selectedTag}
+                   onChange={(e) => setSelectedTag(e.target.value)}
+                   className="w-full p-3 pr-10 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent appearance-none bg-white"
+                 >
+                   <option value="">Todas as tags</option>
+                   {availableTags.map((tag) => (
+                     <option key={tag} value={tag}>
+                       {tag}
+                     </option>
+                   ))}
+                 </select>
+                 {selectedTag && (
+                   <button
+                     onClick={() => setSelectedTag('')}
+                     className="absolute right-8 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors"
+                     title="Limpar filtro de tag"
+                   >
+                     <X className="w-4 h-4" />
+                   </button>
+                 )}
+                 <div className="absolute right-3 top-1/2 transform -translate-y-1/2 pointer-events-none">
+                   <Tag className="w-4 h-4 text-gray-400" />
+                 </div>
+               </div>
              </div>
            </div>
 
-           {/* Botões de Ação */}
-           <div className="flex gap-2 flex-wrap">
-             <button
-               onClick={loadAllVideos}
-               className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2"
-               disabled={loading}
-             >
-               {loading ? (
-                 <>
-                   <Loader2 className="animate-spin h-4 w-4" />
-                   Carregando...
-                 </>
-               ) : (
-                 <>
-                   <Library className="w-4 h-4" />
-                   Recarregar Biblioteca
-                 </>
-               )}
-             </button>
-             
-             {(searchTerm || selectedMontadora || selectedTag) && (
+           {/* Ações dos filtros */}
+           <div className="flex flex-wrap items-center justify-between gap-4 pt-4 border-t">
+             <div className="flex items-center gap-4">
                <button
-                 onClick={clearAllFilters}
-                 className="bg-gray-500 text-white px-4 py-2 rounded-lg hover:bg-gray-600 transition-colors flex items-center gap-2"
-                 title="Limpar todos os filtros"
+                 onClick={() => searchVideos(searchTerm)}
+                 className="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2"
+                 disabled={loading}
                >
-                 <X className="w-4 h-4" />
-                 Limpar Filtros
+                 <Search className="w-4 h-4" />
+                 Buscar
                </button>
-             )}
-           </div>
+               
+               {(searchTerm || selectedMontadora || selectedTag) && (
+                 <button
+                   onClick={clearAllFilters}
+                   className="bg-gray-500 text-white px-4 py-2 rounded-lg hover:bg-gray-600 transition-colors flex items-center gap-2"
+                   title="Limpar todos os filtros"
+                 >
+                   <X className="w-4 h-4" />
+                   Limpar Filtros
+                 </button>
+               )}
+             </div>
 
-           {/* Resumo dos filtros ativos */}
-           <div className="text-sm text-gray-600">
-             {searchTerm && (
-               <span className="bg-blue-100 text-blue-800 px-2 py-1 rounded-full mr-2">
-                 Busca: "{searchTerm}"
-               </span>
-             )}
-             {selectedMontadora && (
-               <span className="bg-green-100 text-green-800 px-2 py-1 rounded-full mr-2">
-                 Montadora: {selectedMontadora.toUpperCase()}
-               </span>
-             )}
-             {selectedTag && (
-               <span className="bg-purple-100 text-purple-800 px-2 py-1 rounded-full mr-2">
-                 Tag: {selectedTag}
-               </span>
-             )}
-             {!searchTerm && !selectedMontadora && !selectedTag && (
-               <span className="text-gray-500">Nenhum filtro ativo</span>
-             )}
+             {/* Resumo dos filtros ativos */}
+             <div className="text-sm text-gray-600">
+               {searchTerm && (
+                 <span className="bg-blue-100 text-blue-800 px-2 py-1 rounded-full mr-2">
+                   Busca: "{searchTerm}"
+                 </span>
+               )}
+               {selectedMontadora && (
+                 <span className="bg-green-100 text-green-800 px-2 py-1 rounded-full mr-2">
+                   Montadora: {selectedMontadora.toUpperCase()}
+                 </span>
+               )}
+               {selectedTag && (
+                 <span className="bg-purple-100 text-purple-800 px-2 py-1 rounded-full mr-2">
+                   Tag: {selectedTag}
+                 </span>
+               )}
+               {!searchTerm && !selectedMontadora && !selectedTag && (
+                 <span className="text-gray-500">Nenhum filtro ativo</span>
+               )}
+             </div>
            </div>
          </div>
         </div>
@@ -840,226 +1390,337 @@ function App() {
             </div>
           ) : filteredVideos.length === 0 && videos.length > 0 ? (
             <div className="text-center py-12">
-              <p className="text-gray-500">Nenhum vídeo encontrado com os filtros selecionados.</p>
-              <button
-                onClick={clearAllFilters}
-                className="mt-4 text-blue-600 hover:text-blue-800 underline"
-              >
-                Limpar todos os filtros
-              </button>
-            </div>
+              <Video className="w-16 h-16 text-gray-400 mx-auto mb-4" />
+              <p className="text-gray-500 text-lg">
+                Nenhum vídeo encontrado com os filtros aplicados
+              </p>
+              <div className="mt-4 p-4 bg-yellow-50 border border-yellow-200 rounded-lg max-w-md mx-auto">
+                <p className="text-sm text-yellow-800">
+                  <strong>Filtros ativos:</strong>
+                </p>
+                <ul className="text-xs text-yellow-700 mt-2 text-left">
+                  {searchTerm && <li>• Busca: "{searchTerm}"</li>}
+                  {selectedMontadora && <li>• Montadora: {selectedMontadora.toUpperCase()}</li>}
+                  {selectedTag && <li>• Tag: {selectedTag}</li>}
+                  <li>• Tente remover alguns filtros para ver mais resultados</li>
+                </ul>
+              </div>
+              <div className="mt-4 flex gap-2 justify-center">
+                <button
+                  onClick={clearAllFilters}
+                  className="bg-gray-600 text-white px-4 py-2 rounded-lg hover:bg-gray-700"
+                >
+                  Limpar Todos os Filtros
+                </button>
+                <button
+                  onClick={() => searchVideos(searchTerm)}
+                  className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700">
+                  Tentar Novamente
+               </button>
+             </div>
+           </div>
           ) : filteredVideos.length === 0 ? (
             <div className="text-center py-12">
-              <p className="text-gray-500">Nenhum vídeo disponível.</p>
-            </div>
-          ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {filteredVideos.map((video) => (
-                <div key={video.public_id} className="bg-gray-50 rounded-lg overflow-hidden shadow hover:shadow-lg transition-shadow">
-                  {/* Thumbnail do vídeo */}
-                  <div 
-                    className="relative cursor-pointer group"
-                    onClick={() => setSelectedVideo(video)}
-                  >
-                    <video
-                      className="w-full h-48 object-cover"
-                      poster={video.secure_url.replace('.mp4', '.jpg')}
-                      muted
-                    >
-                      <source src={video.secure_url} type={`video/${video.format}`} />
-                    </video>
-                    <div className="absolute inset-0 bg-black bg-opacity-40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                      <Play className="w-12 h-12 text-white" />
-                    </div>
-                    <div className="absolute bottom-2 right-2 bg-black bg-opacity-75 text-white px-2 py-1 rounded text-sm">
-                      {formatDuration(video.duration)}
-                    </div>
-                  </div>
-                  
-                  {/* Informações do vídeo */}
-                  <div className="p-4">
-                    <h3 className="font-semibold text-gray-800 mb-2 truncate">
-                      {video.context?.custom?.title || video.display_name}
-                    </h3>
-                    
-                    {video.metadata?.legenda && (
-                      <p className="text-sm text-gray-600 mb-2 line-clamp-2">
-                        {video.metadata.legenda}
-                      </p>
-                    )}
-                    
-                    {/* Tags */}
-                    {video.tags.length > 0 && (
-                      <div className="flex flex-wrap gap-1 mb-3">
-                        {video.tags.slice(0, 3).map((tag, index) => (
-                          <span key={index} className="bg-blue-100 text-blue-800 text-xs px-2 py-1 rounded-full">
-                            {tag}
-                          </span>
-                        ))}
-                        {video.tags.length > 3 && (
-                          <span className="text-xs text-gray-500">+{video.tags.length - 3}</span>
-                        )}
-                      </div>
-                    )}
-                    
-                    {/* Metadados */}
-                    <div className="flex items-center text-xs text-gray-500 space-x-3 mb-3">
-                      <span className="flex items-center">
-                        <Calendar className="w-3 h-3 mr-1" />
-                        {new Date(video.created_at).toLocaleDateString('pt-BR')}
-                      </span>
-                      <span className="flex items-center">
-                        <Hash className="w-3 h-3 mr-1" />
-                        {formatFileSize(video.bytes)}
-                      </span>
-                    </div>
-                    
-                    {/* Botões de ação */}
-                    <div className="flex gap-2">
-                      <button
-                        onClick={() => downloadVideo(video)}
-                        disabled={downloadingVideos.has(video.public_id)}
-                        className="flex-1 bg-blue-600 text-white px-3 py-2 rounded text-sm hover:bg-blue-700 transition-colors flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
-                      >
-                        {downloadingVideos.has(video.public_id) ? (
-                          <>
-                            <Loader2 className="animate-spin h-4 w-4" />
-                            Baixando...
-                          </>
-                        ) : (
-                          <>
-                            <Download className="w-4 h-4" />
-                            Baixar
-                          </>
-                        )}
-                      </button>
-                      
-                      <button
-                        onClick={() => shareVideo(video)}
-                        className="flex-1 bg-green-600 text-white px-3 py-2 rounded text-sm hover:bg-green-700 transition-colors flex items-center justify-center gap-2"
-                        style={{ backgroundColor: '#25D366' }}
-                        title="Compartilhar via WhatsApp"
-                      >
-                        <MessageCircle className="w-4 h-4" />
-                        WhatsApp
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      </div>
-
-      {/* Modal do Player de Vídeo */}
-      {selectedVideo && (
-        <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-lg w-full max-w-4xl max-h-[90vh] overflow-y-auto">
-            <div className="p-4 md:p-6">
-              <div className="flex justify-between items-center mb-4">
-                <h2 className="text-lg md:text-xl font-bold pr-4 truncate">
-                  {selectedVideo.context?.custom?.title || selectedVideo.display_name}
-                </h2>
+              <Video className="w-16 h-16 text-gray-400 mx-auto mb-4" />
+              <p className="text-gray-500 text-lg">
+                Nenhum vídeo encontrado na biblioteca
+              </p>
+              <div className="mt-4 p-4 bg-blue-50 border border-blue-200 rounded-lg max-w-md mx-auto">
+                <p className="text-sm text-blue-800">
+                  <strong>Dicas para sua busca:</strong>
+                </p>
+                <ul className="text-xs text-blue-700 mt-2 text-left">
+                  <li>• Tente palavras-chave diferentes</li>
+                  <li>• Verifique a ortografia dos termos</li>
+                  <li>• Use termos mais gerais</li>
+                  <li>• Verifique se há vídeos na biblioteca</li>
+                </ul>
+              </div>
+              <div className="mt-4 flex gap-2 justify-center">
                 <button
-                  onClick={() => setSelectedVideo(null)}
-                  className="text-gray-500 hover:text-gray-700 transition-colors p-2 -m-2 flex-shrink-0"
-                  aria-label="Fechar modal"
-                >
-                  <X className="w-6 h-6" />
-                </button>
-              </div>
-              
-              {/* Player de Vídeo HTML5 */}
-              <div className="mb-4">
-                <video
-                  className="w-full max-h-60 md:max-h-96 rounded"
-                  controls
-                  autoPlay
-                >
-                  <source src={selectedVideo.secure_url} type={`video/${selectedVideo.format}`} />
-                  Seu navegador não suporta o elemento de vídeo.
-                </video>
-              </div>
-              
-              {/* Informações detalhadas */}
-              <div className="space-y-4">
-                {selectedVideo.metadata?.legenda && (
-                  <div>
-                    <h3 className="font-semibold mb-1">Legenda</h3>
-                    <p className="text-gray-600">{selectedVideo.metadata.legenda}</p>
-                  </div>
-                )}
-                
-                {selectedVideo.tags.length > 0 && (
-                  <div>
-                    <h3 className="font-semibold mb-1">Tags</h3>
-                    <div className="flex flex-wrap gap-2">
-                      {selectedVideo.tags.map((tag, index) => (
-                        <span key={index} className="bg-blue-100 text-blue-800 px-3 py-1 rounded-full text-sm">
-                          {tag}
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-                )}
-                
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-                  <div>
-                    <span className="text-gray-500">Duração:</span>
-                    <p className="font-medium">{formatDuration(selectedVideo.duration)}</p>
-                  </div>
-                  <div>
-                    <span className="text-gray-500">Tamanho:</span>
-                    <p className="font-medium">{formatFileSize(selectedVideo.bytes)}</p>
-                  </div>
-                  <div>
-                    <span className="text-gray-500">Formato:</span>
-                    <p className="font-medium">{selectedVideo.format.toUpperCase()}</p>
-                  </div>
-                  <div>
-                    <span className="text-gray-500">Data:</span>
-                    <p className="font-medium">{new Date(selectedVideo.created_at).toLocaleDateString('pt-BR')}</p>
-                  </div>
-                </div>
-                
-                {/* Botões de ação no modal */}
-                <div className="flex gap-3 pt-4 border-t">
-                  <button
-                    onClick={() => downloadVideo(selectedVideo)}
-                    disabled={downloadingVideos.has(selectedVideo.public_id)}
-                    className="flex-1 bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 transition-colors flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    {downloadingVideos.has(selectedVideo.public_id) ? (
-                      <>
-                        <Loader2 className="animate-spin h-4 w-4" />
-                        Baixando...
-                      </>
-                    ) : (
-                      <>
-                        <Download className="w-4 h-4" />
-                        Baixar Vídeo
-                      </>
-                    )}
-                  </button>
-                  
-                  <button
-                    onClick={() => shareVideo(selectedVideo)}
-                    className="flex-1 bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700 transition-colors flex items-center justify-center gap-2"
-                    style={{ backgroundColor: '#25D366' }}
-                    title="Compartilhar via WhatsApp"
-                  >
-                    <MessageCircle className="w-4 h-4" />
-                    Compartilhar no WhatsApp
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
+                  onClick={() => loadAllVideos()}
+                  className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700">
+                  Recarregar Biblioteca
+               </button>
+             </div>
+           </div>
+         ) : (
+           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+             {filteredVideos.map((video) => (
+               <div key={video.public_id} className="border rounded-lg overflow-hidden hover:shadow-lg transition-shadow duration-300 flex flex-col h-full">
+                 <VideoThumbnail 
+                   video={video} 
+                   onClick={() => setSelectedVideo(video)} 
+                 />
+                 
+                 {/* Informações do vídeo */}
+                 <div className="p-4 flex flex-col flex-1">
+                   {/* Montadora */}
+                   {video.metadata?.montadora && (
+                     <div className="flex flex-wrap gap-1 mb-3">
+                       <span 
+                         className="text-green-600 text-sm flex items-center gap-1 w-fit cursor-pointer hover:text-green-800 hover:underline"
+                         onClick={(e) => {
+                           e.stopPropagation();
+                           if (video.metadata?.montadora) {
+                             setSelectedMontadora(video.metadata.montadora);
+                           }
+                         }}
+                         title={`Filtrar por montadora: ${video.metadata.montadora.toUpperCase()}`}
+                       >
+                         {video.metadata.montadora.toUpperCase()}
+                       </span>
+                     </div>
+                   )}
 
-export default App;
+                   <h3 className="font-bold text-lg mb-2 truncate">
+                     {video.context?.custom?.title || video.display_name}
+                   </h3>
+                   
+                   {/* Legenda apenas do alt ou fallback para legenda */}
+                   {(video.context?.alt || video.metadata?.legenda) && (
+                     <p className="text-gray-600 text-sm mb-3 line-clamp-2">
+                       {video.context?.alt || video.metadata?.legenda}
+                     </p>
+                   )}
+                   
+                   {/* Tags */}
+                   {video.tags && video.tags.length > 0 && (
+                     <div className="flex flex-wrap gap-1 mb-3">
+                       {video.tags.slice(0, 3).map((tag: string, index: number) => (
+                         <span 
+                           key={index}
+                           className="bg-purple-100 text-purple-800 text-xs px-2 py-1 rounded-full flex items-center gap-1 cursor-pointer hover:bg-purple-200 transition-colors"
+                           onClick={(e) => {
+                             e.stopPropagation();
+                             setSelectedTag(tag);
+                           }}
+                           title={`Filtrar por tag: ${tag}`}
+                         >
+                           <Hash className="w-2 h-2" />
+                           {tag}
+                         </span>
+                       ))}
+                       {video.tags.length > 3 && (
+                         <span className="text-gray-500 text-xs py-1">+{video.tags.length - 3} mais</span>
+                       )}
+                     </div>
+                   )}
+                   
+                   {/* Informações técnicas */}
+                   <div className="text-xs text-gray-500 mb-3 flex items-center gap-3 mt-auto">
+                    {video.format && (
+                       <span className="flex items-center gap-1">
+                         <Calendar className="w-3 h-3" />
+                         {new Date(video.created_at).toLocaleDateString('pt-BR')}
+                       </span>
+                     )}
+                     {video.duration && (
+                       <span className="flex items-center gap-1">
+                         <Clock className="w-3 h-3" />
+                         {Math.floor(video.duration / 60).toString().padStart(2, '0')}:{Math.floor(video.duration % 60).toString().padStart(2, '0')}
+                       </span>
+                     )}
+                   </div>
+                   
+                   {/* ✅ BOTÕES DE AÇÃO SIMPLIFICADOS */}
+                   <div className="flex gap-2">
+                     {/* Botão de download */}
+                     <button
+                       onClick={() => handleDownload(video)}
+                       disabled={downloadingVideos.has(video.public_id)}
+                       className="flex-1 bg-blue-600 text-white px-3 py-2 rounded text-sm hover:bg-blue-700 transition-colors flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                     >
+                       {downloadingVideos.has(video.public_id) ? (
+                         <>
+                           <Loader2 className="w-4 h-4 animate-spin" />
+                           Baixando...
+                         </>
+                       ) : (
+                         <>
+                           <Download className="w-4 h-4" />
+                           Baixar
+                         </>
+                       )}
+                     </button>
+                     
+                     {/* Botão WhatsApp inteligente */}
+                     <button
+                       onClick={(e) => {
+                         e.stopPropagation();
+                         const videoSizeMB = video.bytes ? (video.bytes / (1024 * 1024)) : 0;
+                         
+                         // Se arquivo é pequeno (≤16MB), tenta compartilhar arquivo, senão envia link
+                         if (videoSizeMB > 0 && videoSizeMB <= 16) {
+                           downloadAndShareVideo(video, () => {
+                             // Se falhar, envia link como fallback
+                             shareOnWhatsApp(video);
+                           });
+                         } else {
+                           // Arquivo muito grande ou tamanho desconhecido - envia link
+                           shareOnWhatsApp(video);
+                         }
+                       }}
+                       className="flex-1 bg-green-600 text-white px-3 py-2 rounded text-sm hover:bg-green-700 transition-colors flex items-center justify-center gap-2"
+                       title={video.bytes && (video.bytes / (1024 * 1024)) <= 16 
+                         ? "Compartilhar arquivo no WhatsApp" 
+                         : "Compartilhar link no WhatsApp"
+                       }
+                     >
+                       <MessageCircle className="w-4 h-4" />
+                       WhatsApp
+                     </button>
+                   </div>
+                 </div>
+               </div>
+             ))}
+           </div>
+         )}
+       </div>
+     </div>
+
+     {/* Modal do Player de Vídeo */}
+     {selectedVideo && (
+       <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 p-4">
+         <div className="bg-white rounded-lg w-full max-w-4xl max-h-[90vh] overflow-y-auto">
+           <div className="p-4 md:p-6">
+             <div className="flex justify-between items-center mb-4">
+               <h2 className="text-lg md:text-xl font-bold pr-4 truncate">
+                 {selectedVideo.context?.custom?.title || selectedVideo.display_name}
+               </h2>
+               <button
+                 onClick={() => setSelectedVideo(null)}
+                 className="text-gray-500 hover:text-gray-700 transition-colors p-2 -m-2 flex-shrink-0"
+                 aria-label="Fechar modal"
+               >
+                 <X className="w-6 h-6" />
+               </button>
+             </div>
+             
+             {/* Player de Vídeo HTML5 */}
+             <div className="mb-4">
+               <video
+                 className="w-full max-h-60 md:max-h-96 rounded"
+                 controls
+                 autoPlay
+               >
+                 <source src={selectedVideo.secure_url} type={`video/${selectedVideo.format}`} />
+                 Seu navegador não suporta o elemento de vídeo.
+               </video>
+             </div>
+             
+             {/* Informações do vídeo */}
+             <div className="space-y-3">
+               {/* Montadora no modal */}
+               {selectedVideo.metadata?.montadora && (
+                 <div className="flex flex-wrap gap-1 mb-3">
+                   <span 
+                     className="text-green-600 text-sm flex items-center gap-1 w-fit cursor-pointer hover:text-green-800 hover:underline"
+                     onClick={() => {
+                       if (selectedVideo.metadata?.montadora) {
+                         setSelectedMontadora(selectedVideo.metadata.montadora);
+                         setSelectedVideo(null);
+                       }
+                     }}
+                     title={`Filtrar por montadora: ${selectedVideo.metadata.montadora.toUpperCase()}`}
+                   >
+                     {selectedVideo.metadata.montadora.toUpperCase()}
+                   </span>
+                 </div>
+               )}
+
+               {/* Legenda do alt ou fallback para legenda */}
+               {(selectedVideo.context?.alt || selectedVideo.metadata?.legenda) && (
+                 <div>
+                   <p className="text-gray-600 text-sm md:text-base">
+                     {selectedVideo.context?.alt || selectedVideo.metadata?.legenda}
+                   </p>
+                 </div>
+               )}
+               
+               {/* Tags no modal */}
+               {selectedVideo.tags && selectedVideo.tags.length > 0 && (
+                 <div>
+                   <div className="flex flex-wrap gap-2">
+                     {selectedVideo.tags.map((tag: string, index: number) => (
+                       <span 
+                         key={index}
+                         className="bg-purple-100 text-purple-800 px-3 py-1 rounded-full text-sm flex items-center gap-1 cursor-pointer hover:bg-purple-200 transition-colors"
+                         onClick={() => {
+                           setSelectedTag(tag);
+                           setSelectedVideo(null);
+                         }}
+                         title={`Filtrar por tag: ${tag}`}
+                       >
+                         <Hash className="w-3 h-3" />
+                         {tag}
+                       </span>
+                     ))}
+                   </div>
+                 </div>
+               )}
+               
+               {/* ✅ BOTÕES DE AÇÃO NO MODAL SIMPLIFICADOS */}
+               <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3 pt-4 border-t">
+                 <div className="text-sm text-gray-500 flex items-center gap-1">
+                   <Calendar className="w-4 h-4" />
+                   Adicionado em {new Date(selectedVideo.created_at).toLocaleDateString('pt-BR')}
+                 </div>
+                 
+                 <div className="flex gap-2">
+                   {/* Botão de download */}
+                   <button
+                     onClick={() => handleDownload(selectedVideo)}
+                     disabled={downloadingVideos.has(selectedVideo.public_id)}
+                     className="bg-blue-600 text-white px-4 py-3 rounded hover:bg-blue-700 transition-colors flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed min-h-[44px]"
+                   >
+                     {downloadingVideos.has(selectedVideo.public_id) ? (
+                       <>
+                         <Loader2 className="w-4 h-4 animate-spin" />
+                         Baixando...
+                       </>
+                     ) : (
+                       <>
+                         <Download className="w-4 h-4" />
+                         Baixar
+                       </>
+                     )}
+                   </button>
+                   
+                   {/* Botão WhatsApp inteligente */}
+                   <button
+                     onClick={() => {
+                       const videoSizeMB = selectedVideo.bytes ? (selectedVideo.bytes / (1024 * 1024)) : 0;
+                       
+                       // Se arquivo é pequeno (≤16MB), tenta compartilhar arquivo, senão envia link
+                       if (videoSizeMB > 0 && videoSizeMB <= 16) {
+                         downloadAndShareVideo(selectedVideo, () => {
+                           // Se falhar, envia link como fallback
+                           shareOnWhatsApp(selectedVideo);
+                         });
+                       } else {
+                         // Arquivo muito grande ou tamanho desconhecido - envia link
+                         shareOnWhatsApp(selectedVideo);
+                       }
+                     }}
+                     className="bg-green-600 text-white px-4 py-3 rounded hover:bg-green-700 transition-colors flex items-center justify-center gap-2 min-h-[44px]"
+                     title={selectedVideo.bytes && (selectedVideo.bytes / (1024 * 1024)) <= 16 
+                       ? "Compartilhar arquivo no WhatsApp" 
+                       : "Compartilhar link no WhatsApp"
+                     }
+                   >
+                     <MessageCircle className="w-4 h-4" />
+                     WhatsApp
+                   </button>
+                 </div>
+               </div>
+             </div>
+           </div>
+         </div>
+       </div>
+     )}
+   </div>
+ );
+};
+
+export default VideoApp;
