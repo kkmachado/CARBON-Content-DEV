@@ -19,14 +19,10 @@ import {
   Share2
 } from 'lucide-react';
 
-// Configuração do Supabase
 const SUPABASE_URL = 'https://sfkxgmxchziyfvdeybdl.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNma3hnbXhjaHppeWZ2ZGV5YmRsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTE4OTEyMTAsImV4cCI6MjA2NzQ2NzIxMH0.F744lM-ovsBKDANBSzmGb3iMUCYWy4mrcGNDzuZs51E';
-
-// Configuração do Cloudinary
 const CLOUDINARY_CLOUD_NAME = 'carboncars';
 
-// Interfaces
 interface User {
   id: string;
   email: string;
@@ -64,7 +60,6 @@ interface ApiResponse<T> {
   error: any;
 }
 
-// Função de compartilhamento simplificada
 const shareVideo = async (video: CloudinaryVideo) => {
   try {
     if (!navigator.share) {
@@ -76,8 +71,8 @@ const shareVideo = async (video: CloudinaryVideo) => {
     if (!response.ok) throw new Error('Erro ao baixar vídeo');
     
     const blob = await response.blob();
-    const fileName = `${video.context?.custom?.title || video.display_name}.${video.format}`;
-    const file = new File([blob], fileName, { type: `video/${video.format}` });
+    const fileName = (video.context?.custom?.title || video.display_name) + '.' + video.format;
+    const file = new File([blob], fileName, { type: 'video/' + video.format });
     
     if (!navigator.canShare || !navigator.canShare({ files: [file] })) {
       alert('Compartilhamento de arquivos não suportado neste dispositivo');
@@ -98,27 +93,14 @@ const shareVideo = async (video: CloudinaryVideo) => {
   }
 };
 
-// Componente do botão de compartilhamento
 interface ShareButtonProps {
   video: CloudinaryVideo;
-  size?: 'small' | 'medium' | 'large';
+  size?: string;
   className?: string;
 }
 
-const ShareButton: React.FC<ShareButtonProps> = ({ 
-  video, 
-  size = 'medium',
-  className = ''
-}) => {
+const ShareButton: React.FC<ShareButtonProps> = ({ video, size = 'medium', className = '' }) => {
   const [isSharing, setIsSharing] = useState(false);
-  
-  const sizeClass = size === 'small' ? 'px-2 py-1 text-xs' : 
-                   size === 'large' ? 'px-4 py-3 text-base' : 
-                   'px-3 py-2 text-sm';
-  
-  const iconClass = size === 'small' ? 'w-3 h-3' :
-                   size === 'large' ? 'w-5 h-5' :
-                   'w-4 h-4';
   
   const handleShare = async (e: React.MouseEvent<HTMLButtonElement>) => {
     e.stopPropagation();
@@ -130,23 +112,29 @@ const ShareButton: React.FC<ShareButtonProps> = ({
     }
   };
   
-  const isShareSupported = typeof navigator !== 'undefined' && 
-                          navigator.share && 
-                          navigator.canShare;
+  const isShareSupported = typeof navigator !== 'undefined' && navigator.share && navigator.canShare;
   
   if (!isShareSupported) {
     return null;
   }
   
+  const sizeClass = size === 'small' ? 'px-2 py-1 text-xs' : 
+                   size === 'large' ? 'px-4 py-3 text-base' : 
+                   'px-3 py-2 text-sm';
+  
+  const iconClass = size === 'small' ? 'w-3 h-3' :
+                   size === 'large' ? 'w-5 h-5' :
+                   'w-4 h-4';
+  
   return (
     <button
       onClick={handleShare}
       disabled={isSharing}
-      className={`${sizeClass} bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed ${className}`}
+      className={sizeClass + ' bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed ' + className}
       title="Compartilhar vídeo"
     >
       {isSharing ? (
-        <Loader2 className={`${iconClass} animate-spin`} />
+        <Loader2 className={iconClass + ' animate-spin'} />
       ) : (
         <Share2 className={iconClass} />
       )}
@@ -155,7 +143,6 @@ const ShareButton: React.FC<ShareButtonProps> = ({
   );
 };
 
-// Cliente Supabase
 class SupabaseClient {
   private url: string;
   private key: string;
@@ -171,11 +158,11 @@ class SupabaseClient {
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
       'apikey': this.key,
-      'Authorization': `Bearer ${this.key}`
+      'Authorization': 'Bearer ' + this.key
     };
 
     if (includeAuth && this.token) {
-      headers['Authorization'] = `Bearer ${this.token}`;
+      headers['Authorization'] = 'Bearer ' + this.token;
     }
 
     return headers;
@@ -183,7 +170,7 @@ class SupabaseClient {
 
   async signIn(email: string, password: string): Promise<ApiResponse<{user: User, access_token: string}>> {
     try {
-      const response = await fetch(`${this.url}/auth/v1/token?grant_type=password`, {
+      const response = await fetch(this.url + '/auth/v1/token?grant_type=password', {
         method: 'POST',
         headers: this.getHeaders(false),
         body: JSON.stringify({ email, password })
@@ -210,7 +197,7 @@ class SupabaseClient {
 
   async signOut(): Promise<{error: any}> {
     try {
-      await fetch(`${this.url}/auth/v1/logout`, {
+      await fetch(this.url + '/auth/v1/logout', {
         method: 'POST',
         headers: this.getHeaders()
       });
@@ -233,7 +220,6 @@ class SupabaseClient {
       }
       return JSON.parse(user);
     } catch (error) {
-      console.error('Erro ao recuperar usuário do localStorage:', error);
       localStorage.removeItem('supabase_user');
       localStorage.removeItem('supabase_token');
       return null;
@@ -241,19 +227,16 @@ class SupabaseClient {
   }
 }
 
-// Cliente Cloudinary
 class CloudinaryClient {
-  private cloudName: string;
   private backendUrl: string;
 
   constructor() {
-    this.cloudName = CLOUDINARY_CLOUD_NAME;
     this.backendUrl = 'https://api.carboncontent.carlosmachado.tech';
   }
 
   async searchVideos(searchTerm: string): Promise<CloudinaryVideo[]> {
     try {
-      const response = await fetch(`${this.backendUrl}/api/videos/search`, {
+      const response = await fetch(this.backendUrl + '/api/videos/search', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -279,7 +262,7 @@ class CloudinaryClient {
 
   async getAllVideos(): Promise<CloudinaryVideo[]> {
     try {
-      const response = await fetch(`${this.backendUrl}/api/videos`, {
+      const response = await fetch(this.backendUrl + '/api/videos', {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',
@@ -304,7 +287,7 @@ class CloudinaryClient {
 
   async testConnection(): Promise<boolean> {
     try {
-      const response = await fetch(`${this.backendUrl}/api/health`);
+      const response = await fetch(this.backendUrl + '/api/health');
       return response.ok;
     } catch (error) {
       return false;
@@ -327,7 +310,6 @@ class CloudinaryClient {
   }
 }
 
-// Componente Thumbnail
 interface VideoThumbnailProps {
   video: CloudinaryVideo;
   onClick: () => void;
@@ -338,7 +320,7 @@ const VideoThumbnail: React.FC<VideoThumbnailProps> = ({ video, onClick }) => {
   const [imageError, setImageError] = useState(false);
 
   const getThumbnailUrl = (width: number = 400, height: number = 225): string => {
-    return `https://res.cloudinary.com/${CLOUDINARY_CLOUD_NAME}/video/upload/w_${width},h_${height},c_fill,q_auto,f_auto,so_0/${video.public_id}.jpg`;
+    return 'https://res.cloudinary.com/' + CLOUDINARY_CLOUD_NAME + '/video/upload/w_' + width + ',h_' + height + ',c_fill,q_auto,f_auto,so_0/' + video.public_id + '.jpg';
   };
 
   const thumbnailUrl = getThumbnailUrl(400, 225);
@@ -374,18 +356,14 @@ const VideoThumbnail: React.FC<VideoThumbnailProps> = ({ video, onClick }) => {
       <img
         src={lowQualityUrl}
         alt=""
-        className={`absolute inset-0 w-full h-48 object-cover transition-opacity duration-300 ${
-          imageLoading ? 'opacity-100' : 'opacity-0'
-        }`}
+        className={'absolute inset-0 w-full h-48 object-cover transition-opacity duration-300 ' + (imageLoading ? 'opacity-100' : 'opacity-0')}
         loading="lazy"
       />
       
       <img
         src={thumbnailUrl}
         alt={video.context?.custom?.title || video.display_name}
-        className={`w-full h-48 object-cover transition-opacity duration-300 ${
-          imageLoading ? 'opacity-0' : 'opacity-100'
-        }`}
+        className={'w-full h-48 object-cover transition-opacity duration-300 ' + (imageLoading ? 'opacity-0' : 'opacity-100')}
         onLoad={handleImageLoad}
         onError={handleImageError}
         loading="lazy"
@@ -401,7 +379,7 @@ const VideoThumbnail: React.FC<VideoThumbnailProps> = ({ video, onClick }) => {
       
       <div className="absolute bottom-2 right-2 bg-black bg-opacity-75 text-white text-xs px-2 py-1 rounded">
         {video.duration > 0 ? 
-          `${Math.floor(video.duration / 60).toString().padStart(2, '0')}:${Math.floor(video.duration % 60).toString().padStart(2, '0')}` : '--:--'}
+          Math.floor(video.duration / 60).toString().padStart(2, '0') + ':' + Math.floor(video.duration % 60).toString().padStart(2, '0') : '--:--'}
       </div>
       
       <div className="absolute inset-0 border-2 border-transparent group-hover:border-blue-500/50 rounded-lg transition-colors duration-300 pointer-events-none"></div>
@@ -409,7 +387,6 @@ const VideoThumbnail: React.FC<VideoThumbnailProps> = ({ video, onClick }) => {
   );
 };
 
-// Componente principal
 const VideoApp: React.FC = () => {
   const [user, setUser] = useState<User | null>(null);
   const [videos, setVideos] = useState<CloudinaryVideo[]>([]);
@@ -429,7 +406,6 @@ const VideoApp: React.FC = () => {
   const [isLoggingIn, setIsLoggingIn] = useState(false);
   const [downloadingVideos, setDownloadingVideos] = useState<Set<string>>(new Set());
 
-  // Verificar usuário logado
   useEffect(() => {
     try {
       const storedUser = supabase.current.getUser();
@@ -442,7 +418,6 @@ const VideoApp: React.FC = () => {
     }
   }, []);
 
-  // Verificar backend
   useEffect(() => {
     const checkBackend = async () => {
       await cloudinary.current.testConnection();
@@ -450,7 +425,6 @@ const VideoApp: React.FC = () => {
     checkBackend();
   }, []);
 
-  // Extrair dados dos vídeos
   const extractMontadoras = (videos: CloudinaryVideo[]): string[] => {
     const montadoras = new Set<string>();
     videos.forEach(video => {
@@ -476,7 +450,6 @@ const VideoApp: React.FC = () => {
     return Array.from(tags).sort();
   };
 
-  // Carregar vídeos
   const loadAllVideos = async () => {
     if (!user) return;
 
@@ -485,7 +458,7 @@ const VideoApp: React.FC = () => {
       const cloudinaryVideos = await cloudinary.current.getAllVideos();
       setVideos(cloudinaryVideos);
     } catch (error: any) {
-      alert(`Erro ao carregar biblioteca: ${error.message}`);
+      alert('Erro ao carregar biblioteca: ' + error.message);
       setVideos([]);
     } finally {
       setLoading(false);
@@ -506,21 +479,19 @@ const VideoApp: React.FC = () => {
       const cloudinaryVideos = await cloudinary.current.searchVideos(term);
       setVideos(cloudinaryVideos);
     } catch (error: any) {
-      alert(`Erro na busca: ${error.message}`);
+      alert('Erro na busca: ' + error.message);
       setVideos([]);
     } finally {
       setLoading(false);
     }
   };
 
-  // Carregar quando usuário logar
   useEffect(() => {
     if (user) {
       loadAllVideos();
     }
   }, [user]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Atualizar listas quando vídeos mudarem
   useEffect(() => {
     const montadoras = extractMontadoras(videos);
     const tags = extractTags(videos);
@@ -528,7 +499,6 @@ const VideoApp: React.FC = () => {
     setAvailableTags(tags);
   }, [videos]);
 
-  // Busca com debounce
   useEffect(() => {
     if (!user) return;
     
@@ -543,7 +513,6 @@ const VideoApp: React.FC = () => {
     return () => clearTimeout(timeoutId);
   }, [searchTerm, user]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Filtros
   const filterVideosByMontadora = (videos: CloudinaryVideo[], montadora: string): CloudinaryVideo[] => {
     if (!montadora) return videos;
     return videos.filter(video => {
@@ -662,7 +631,7 @@ const VideoApp: React.FC = () => {
       setSelectedTag('');
       setAuthError('');
     } catch (error) {
-      console.error('Erro no logout:', error);
+      // ignore
     }
   };
 
@@ -678,11 +647,11 @@ const VideoApp: React.FC = () => {
 
       const response = await fetch(video.secure_url);
       if (!response.ok) {
-        throw new Error(`Erro HTTP: ${response.status}`);
+        throw new Error('Erro HTTP: ' + response.status);
       }
 
       const blob = await response.blob();
-      const filename = `${video.context?.custom?.title || video.display_name}.${video.format}`;
+      const filename = (video.context?.custom?.title || video.display_name) + '.' + video.format;
       
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
@@ -697,7 +666,7 @@ const VideoApp: React.FC = () => {
       document.body.removeChild(a);
 
     } catch (error: any) {
-      alert(`Erro ao baixar vídeo: ${error.message}`);
+      alert('Erro ao baixar vídeo: ' + error.message);
     } finally {
       setDownloadingVideos(prev => {
         const newSet = new Set(prev);
@@ -974,7 +943,7 @@ const VideoApp: React.FC = () => {
             <div className="text-center py-12">
               <Loader2 className="animate-spin h-16 w-16 text-blue-600 mx-auto" />
               <p className="mt-4 text-lg">
-                {searchTerm ? `Buscando "${searchTerm}"...` : 'Carregando biblioteca de vídeos...'}
+                {searchTerm ? 'Buscando "' + searchTerm + '"...' : 'Carregando biblioteca de vídeos...'}
               </p>
               <p className="text-sm text-gray-500 mt-2">CARBON Content</p>
             </div>
@@ -1016,12 +985,12 @@ const VideoApp: React.FC = () => {
                   />
                   
                   <div className="p-4">
-                    <h3 className="font-medium text-gray-900 mb-2 overflow-hidden" style={{ display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', minHeight: '3rem' }}>
+                    <h3 className="font-medium text-gray-900 mb-2" style={{ overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', minHeight: '3rem' }}>
                       {video.context?.custom?.title || video.display_name}
                     </h3>
                     
                     {video.metadata?.legenda && (
-                      <p className="text-sm text-gray-600 mb-3 overflow-hidden" style={{ display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' }}>
+                      <p className="text-sm text-gray-600 mb-3" style={{ overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' }}>
                         {video.metadata.legenda}
                       </p>
                     )}
@@ -1048,13 +1017,13 @@ const VideoApp: React.FC = () => {
                       <div className="flex items-center">
                         <Clock className="w-3 h-3 mr-1" />
                         {video.duration > 0 ? 
-                          `${Math.floor(video.duration / 60)}:${Math.floor(video.duration % 60).toString().padStart(2, '0')}` : 
+                          Math.floor(video.duration / 60) + ':' + Math.floor(video.duration % 60).toString().padStart(2, '0') : 
                           '--:--'
                         }
                       </div>
                       <div className="flex items-center">
                         <HardDrive className="w-3 h-3 mr-1" />
-                        {video.bytes > 0 ? `${(video.bytes / (1024 * 1024)).toFixed(1)}MB` : '--'}
+                        {video.bytes > 0 ? (video.bytes / (1024 * 1024)).toFixed(1) + 'MB' : '--'}
                       </div>
                     </div>
                     
@@ -1113,7 +1082,7 @@ const VideoApp: React.FC = () => {
                   controls
                   autoPlay
                 >
-                  <source src={selectedVideo.secure_url} type={`video/${selectedVideo.format}`} />
+                  <source src={selectedVideo.secure_url} type={'video/' + selectedVideo.format} />
                   Seu navegador não suporta o elemento de vídeo.
                 </video>
               </div>
@@ -1133,7 +1102,7 @@ const VideoApp: React.FC = () => {
                     <span className="text-gray-500">Duração:</span>
                     <div className="font-medium">
                       {selectedVideo.duration > 0 ? 
-                        `${Math.floor(selectedVideo.duration / 60)}:${Math.floor(selectedVideo.duration % 60).toString().padStart(2, '0')}` : 
+                        Math.floor(selectedVideo.duration / 60) + ':' + Math.floor(selectedVideo.duration % 60).toString().padStart(2, '0') : 
                         'N/A'
                       }
                     </div>
@@ -1141,7 +1110,7 @@ const VideoApp: React.FC = () => {
                   <div>
                     <span className="text-gray-500">Tamanho:</span>
                     <div className="font-medium">
-                      {selectedVideo.bytes > 0 ? `${(selectedVideo.bytes / (1024 * 1024)).toFixed(1)}MB` : 'N/A'}
+                      {selectedVideo.bytes > 0 ? (selectedVideo.bytes / (1024 * 1024)).toFixed(1) + 'MB' : 'N/A'}
                     </div>
                   </div>
                   <div>
