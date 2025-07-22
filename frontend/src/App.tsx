@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { 
   Search, 
   Download, 
@@ -14,11 +14,9 @@ import {
   LogOut,
   Video,
   Library,
-  Hash,
   Car,
   Tag,
-  Filter,
-  Share2        // ✅ NOVO ÍCONE PARA COMPARTILHAMENTO SIMPLIFICADO
+  Share2
 } from 'lucide-react';
 
 // Configuração do Supabase (usando REST API)
@@ -67,7 +65,7 @@ interface ApiResponse<T> {
 }
 
 // ✅ FUNÇÃO SIMPLIFICADA PARA COMPARTILHAMENTO
-const shareVideo = async (video: CloudinaryVideo) => {
+const shareVideo = async (video: CloudinaryVideo): Promise<void> => {
   try {
     console.log('📤 Compartilhando vídeo via Web Share API...');
     
@@ -87,7 +85,7 @@ const shareVideo = async (video: CloudinaryVideo) => {
     const file = new File([blob], fileName, { type: `video/${video.format}` });
     
     // Verificar se pode compartilhar arquivos
-    if (!navigator.canShare({ files: [file] })) {
+    if (!navigator.canShare || !navigator.canShare({ files: [file] })) {
       console.log('❌ Compartilhamento de arquivos não suportado');
       alert('Compartilhamento de arquivos não suportado neste dispositivo');
       return;
@@ -141,7 +139,7 @@ const ShareButton: React.FC<ShareButtonProps> = ({
     large: 'w-5 h-5'
   };
   
-  const handleShare = async (e: React.MouseEvent) => {
+  const handleShare = async (e: React.MouseEvent<HTMLButtonElement>): Promise<void> => {
     e.stopPropagation();
     
     setIsSharing(true);
@@ -158,7 +156,7 @@ const ShareButton: React.FC<ShareButtonProps> = ({
                           navigator.canShare;
   
   if (!isShareSupported) {
-    return null; // Não renderizar o botão se não há suporte
+    return null;
   }
   
   return (
@@ -390,7 +388,7 @@ const VideoThumbnail: React.FC<VideoThumbnailProps> = ({ video, onClick }) => {
   const [imageLoading, setImageLoading] = useState(true);
   const [imageError, setImageError] = useState(false);
 
-  const getThumbnailUrl = (width: number = 400, height: number = 225) => {
+  const getThumbnailUrl = (width: number = 400, height: number = 225): string => {
     return `https://res.cloudinary.com/${CLOUDINARY_CLOUD_NAME}/video/upload/w_${width},h_${height},c_fill,q_auto,f_auto,so_0/${video.public_id}.jpg`;
   };
 
@@ -398,11 +396,11 @@ const VideoThumbnail: React.FC<VideoThumbnailProps> = ({ video, onClick }) => {
   const fallbackUrl = getThumbnailUrl(400, 225).replace('so_0', 'so_1');
   const lowQualityUrl = getThumbnailUrl(200, 113);
 
-  const handleImageLoad = () => {
+  const handleImageLoad = (): void => {
     setImageLoading(false);
   };
 
-  const handleImageError = (e: React.SyntheticEvent<HTMLImageElement>) => {
+  const handleImageError = (e: React.SyntheticEvent<HTMLImageElement>): void => {
     const target = e.target as HTMLImageElement;
     
     if (!imageError) {
@@ -464,7 +462,7 @@ const VideoThumbnail: React.FC<VideoThumbnailProps> = ({ video, onClick }) => {
   );
 };
 
-const VideoApp = () => {
+const VideoApp: React.FC = () => {
   const [user, setUser] = useState<User | null>(null);
   const [videos, setVideos] = useState<CloudinaryVideo[]>([]);
   const [loading, setLoading] = useState(false);
@@ -505,10 +503,10 @@ const VideoApp = () => {
 
   // Verificar conexão com backend ao carregar
   useEffect(() => {
-    const checkBackend = async () => {
+    const checkBackend = async (): Promise<void> => {
       const isConnected = await cloudinary.current.testConnection();
       if (!isConnected) {
-        console.warn('⚠️ Backend não está rodando!\n\nPara resolver:\n1. Abra um novo terminal\n2. cd backend\n3. npm install\n4. npm run dev');
+        console.warn('⚠️ Backend não está rodando!');
       }
     };
     
@@ -624,7 +622,7 @@ const VideoApp = () => {
   }, [videos]);
 
   // Carregar todos os vídeos
-  const loadAllVideos = async () => {
+  const loadAllVideos = async (): Promise<void> => {
     if (!user) return;
 
     try {
@@ -649,7 +647,7 @@ const VideoApp = () => {
   };
 
   // Buscar vídeos por termo
-  const searchVideos = async (term: string) => {
+  const searchVideos = async (term: string): Promise<void> => {
     if (!user) return;
 
     try {
@@ -695,14 +693,14 @@ const VideoApp = () => {
   }, [searchTerm, user]);
 
   // Limpar todos os filtros
-  const clearAllFilters = () => {
+  const clearAllFilters = (): void => {
     setSearchTerm('');
     setSelectedMontadora('');
     setSelectedTag('');
   };
 
   // Login
-  const handleLogin = async (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent<HTMLFormElement>): Promise<void> => {
     e.preventDefault();
     setAuthError('');
     setIsLoggingIn(true);
@@ -762,7 +760,7 @@ const VideoApp = () => {
   };
 
   // Logout
-  const handleLogout = async () => {
+  const handleLogout = async (): Promise<void> => {
     try {
       await supabase.current.signOut();
       setUser(null);
@@ -779,7 +777,7 @@ const VideoApp = () => {
   };
 
   // Download de vídeo
-  const handleDownload = async (video: CloudinaryVideo) => {
+  const handleDownload = async (video: CloudinaryVideo): Promise<void> => {
     const videoId = video.public_id;
     
     if (downloadingVideos.has(videoId)) {
