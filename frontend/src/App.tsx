@@ -112,7 +112,9 @@ const ShareButton: React.FC<ShareButtonProps> = ({ video, size = 'medium', class
     }
   };
   
-  const isShareSupported = typeof navigator !== 'undefined' && navigator.share && navigator.canShare;
+  const isShareSupported = typeof navigator !== 'undefined' 
+    && typeof navigator.share === 'function'
+    && typeof navigator.canShare === 'function';
   
   if (!isShareSupported) {
     return null;
