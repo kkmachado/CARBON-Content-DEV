@@ -153,9 +153,9 @@ const ShareButton: React.FC<ShareButtonProps> = ({
   };
   
   // Verificar se Web Share API está disponível
-  const isShareSupported = typeof navigator !== 'undefined' && 
-                          navigator.share && 
-                          navigator.canShare;
+  const isShareSupported = typeof navigator !== 'undefined' &&
+                          typeof navigator.share === 'function' &&
+                          typeof navigator.canShare === 'function';
   
   if (!isShareSupported) {
     return null; // Não renderizar o botão se não há suporte
