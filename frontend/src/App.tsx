@@ -70,352 +70,6 @@ interface ApiResponse<T> {
   error: any;
 }
 
-// ✅ FUNÇÕES PARA WHATSAPP
-const generateWhatsAppMessage = (video: CloudinaryVideo): string => {
-  const title = video.context?.custom?.title || video.display_name || 'Vídeo CARBON';
-  const montadora = video.metadata?.montadora ? video.metadata.montadora.toUpperCase() : '';
-  const legenda = video.metadata?.legenda || video.context?.custom?.caption || '';
-  const tags = video.tags && video.tags.length > 0 ? video.tags.join(', ') : '';
-  
-  let message = `🎬 *${title}*\n\n`;
-  
-  if (montadora) {
-    message += `🚗 *Montadora:* ${montadora}\n\n`;
-  }
-  
-  if (legenda) {
-    message += `📝 *Descrição:* ${legenda}\n\n`;
-  }
-  
-  if (tags) {
-    message += `🏷️ *Tags:* ${tags}\n\n`;
-  }
-  
-  message += `🔗 *Assistir:* ${video.secure_url}\n\n`;
-  message += `📅 *Compartilhado via CARBON Content*`;
-  
-  return encodeURIComponent(message);
-};
-
-const shareOnWhatsApp = (video: CloudinaryVideo, phoneNumber?: string) => {
-  const message = generateWhatsAppMessage(video);
-  
-  if (phoneNumber) {
-    const cleanPhone = phoneNumber.replace(/[^\d]/g, '');
-    const whatsappUrl = `https://wa.me/${cleanPhone}?text=${message}`;
-    window.open(whatsappUrl, '_blank');
-  } else {
-    const whatsappUrl = `https://wa.me/?text=${message}`;
-    window.open(whatsappUrl, '_blank');
-  }
-};
-
-const downloadAndShareVideo = async (video: CloudinaryVideo, onError?: () => void) => {
-  try {
-    console.log('📥 Baixando vídeo para compartilhar...');
-    
-    const videoSizeMB = video.bytes ? (video.bytes / (1024 * 1024)) : 0;
-    
-    if (videoSizeMB > 16) {
-      // Usar callback para mostrar modal personalizado ao invés de alert
-      if (onError) {
-        onError();
-      }
-      shareOnWhatsApp(video);
-      return;
-    }
-    
-    const response = await fetch(video.secure_url);
-    if (!response.ok) throw new Error('Erro ao baixar vídeo');
-    
-    const blob = await response.blob();
-    
-    if (navigator.share && navigator.canShare) {
-      const fileName = `${video.context?.custom?.title || video.display_name}.${video.format}`;
-      const file = new File([blob], fileName, { type: `video/${video.format}` });
-      
-      if (navigator.canShare({ files: [file] })) {
-        try {
-          await navigator.share({
-            title: video.context?.custom?.title || video.display_name,
-            text: `${video.context?.alt || video.metadata?.legenda}`,
-            files: [file]
-          });
-          console.log('✅ Vídeo compartilhado com sucesso');
-          return;
-        } catch (shareError) {
-          console.log('ℹ️ Usuário cancelou compartilhamento ou erro:', shareError);
-        }
-      }
-    }
-    
-    const blobUrl = URL.createObjectURL(blob);
-    const tempLink = document.createElement('a');
-    tempLink.href = blobUrl;
-    tempLink.download = `${video.context?.custom?.title || video.display_name}.${video.format}`;
-    tempLink.click();
-    
-    // Não usar alert, apenas log para o desenvolvedor
-    console.log('📱 Vídeo baixado com sucesso! Arquivo salvo na pasta Downloads.');
-    
-    setTimeout(() => URL.revokeObjectURL(blobUrl), 1000);
-    
-  } catch (error) {
-    console.error('❌ Erro ao baixar vídeo:', error);
-    
-    // Chamar callback de erro ao invés de usar confirm
-    if (onError) {
-      onError();
-    }
-  }
-};
-
-// ✅ COMPONENTE DE MODAL PARA CONFIRMAÇÕES
-interface ConfirmModalProps {
-  isOpen: boolean;
-  onClose: () => void;
-  onConfirm: () => void;
-  title: string;
-  message: string;
-  confirmText?: string;
-  cancelText?: string;
-}
-
-const ConfirmModal: React.FC<ConfirmModalProps> = ({
-  isOpen,
-  onClose,
-  onConfirm,
-  title,
-  message,
-  confirmText = 'Sim',
-  cancelText = 'Cancelar'
-}) => {
-  if (!isOpen) return null;
-
-  return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-lg w-full max-w-md">
-        <div className="p-6">
-          <div className="flex items-center mb-4">
-            <AlertCircle className="w-6 h-6 text-orange-500 mr-3" />
-            <h3 className="text-lg font-bold text-gray-800">{title}</h3>
-          </div>
-          
-          <p className="text-gray-600 mb-6 whitespace-pre-line">{message}</p>
-          
-          <div className="flex gap-3 justify-end">
-            <button
-              onClick={onClose}
-              className="px-4 py-2 text-gray-600 border border-gray-300 rounded hover:bg-gray-50 transition-colors"
-            >
-              {cancelText}
-            </button>
-            <button
-              onClick={() => {
-                onConfirm();
-                onClose();
-              }}
-              className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 transition-colors"
-            >
-              {confirmText}
-            </button>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-};
-interface WhatsAppShareOptionsProps {
-  video: CloudinaryVideo;
-  size?: 'small' | 'medium' | 'large';
-}
-
-// ✅ COMPONENTE COM OPÇÕES DE COMPARTILHAMENTO
-interface WhatsAppShareOptionsProps {
-  video: CloudinaryVideo;
-  size?: 'small' | 'medium' | 'large';
-}
-
-const WhatsAppShareOptions: React.FC<WhatsAppShareOptionsProps> = ({ video, size = 'medium' }) => {
-  const [showOptions, setShowOptions] = useState(false);
-  const [downloading, setDownloading] = useState(false);
-  const [showConfirmModal, setShowConfirmModal] = useState(false);
-  const [confirmModalProps, setConfirmModalProps] = useState({
-    title: '',
-    message: '',
-    onConfirm: () => {}
-  });
-  
-  const videoSizeMB = video.bytes ? (video.bytes / (1024 * 1024)) : 0;
-  
-  const showErrorModal = (title: string, message: string, onConfirm?: () => void) => {
-    setConfirmModalProps({
-      title,
-      message,
-      onConfirm: onConfirm || (() => {})
-    });
-    setShowConfirmModal(true);
-  };
-  
-  const handleDownloadAndShare = async () => {
-    setDownloading(true);
-    try {
-      await downloadAndShareVideo(video, () => {
-        // Callback de erro - mostrar modal ao invés de confirm
-        showErrorModal(
-          'Erro no Download',
-          'Não foi possível baixar o vídeo para compartilhar.\n\nDeseja enviar o link do vídeo pelo WhatsApp?',
-          () => shareOnWhatsApp(video)
-        );
-      });
-    } finally {
-      setDownloading(false);
-      setShowOptions(false);
-    }
-  };
-  
-  const handleShareLink = () => {
-    shareOnWhatsApp(video);
-    setShowOptions(false);
-  };
-  
-  return (
-    <>
-      <div className="relative">
-        <button
-          onClick={() => setShowOptions(!showOptions)}
-          className={`
-            ${size === 'small' ? 'px-2 py-1 text-xs' : size === 'large' ? 'px-4 py-3 text-base' : 'px-3 py-2 text-sm'}
-            bg-green-600 text-white rounded hover:bg-green-700 transition-colors flex items-center justify-center gap-2
-          `}
-          title="Opções de compartilhamento WhatsApp"
-        >
-          <MessageCircle className={size === 'small' ? 'w-3 h-3' : size === 'large' ? 'w-5 h-5' : 'w-4 h-4'} />
-          {size !== 'small' && 'WhatsApp'}
-          {showOptions ? (
-            <X className="w-3 h-3" />
-          ) : (
-            <ExternalLink className="w-3 h-3" />
-          )}
-        </button>
-        
-        {showOptions && (
-          <div className="absolute top-full right-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg z-20 min-w-48">
-            <div className="p-2">
-              <div className="text-xs text-gray-500 mb-2 px-2">
-                Tamanho: {videoSizeMB > 0 ? `${videoSizeMB.toFixed(1)}MB` : 'Desconhecido'}
-              </div>
-              
-              {videoSizeMB <= 16 && videoSizeMB > 0 && (
-                <button
-                  onClick={handleDownloadAndShare}
-                  disabled={downloading}
-                  className="w-full text-left px-3 py-2 hover:bg-gray-50 rounded flex items-center gap-2 text-sm disabled:opacity-50"
-                >
-                  {downloading ? (
-                    <Loader2 className="w-4 h-4 animate-spin text-green-600" />
-                  ) : (
-                    <Download className="w-4 h-4 text-green-600" />
-                  )}
-                  <div>
-                    <div className="font-medium">Compartilhar arquivo</div>
-                    <div className="text-xs text-gray-500">Baixa e compartilha o vídeo</div>
-                  </div>
-                </button>
-              )}
-              
-              {videoSizeMB > 16 && (
-                <div className="px-3 py-2 text-xs text-orange-600 bg-orange-50 rounded mb-2">
-                  ⚠️ Arquivo muito grande para WhatsApp (limite: 16MB)
-                </div>
-              )}
-              
-              <button
-                onClick={handleShareLink}
-                className="w-full text-left px-3 py-2 hover:bg-gray-50 rounded flex items-center gap-2 text-sm"
-              >
-                <Share2 className="w-4 h-4 text-green-600" />
-                <div>
-                  <div className="font-medium">Compartilhar link</div>
-                  <div className="text-xs text-gray-500">Envia URL para assistir online</div>
-                </div>
-              </button>
-            </div>
-          </div>
-        )}
-        
-        {showOptions && (
-          <div 
-            className="fixed inset-0 z-10" 
-            onClick={() => setShowOptions(false)}
-          />
-        )}
-      </div>
-
-      {/* Modal de confirmação personalizado */}
-      <ConfirmModal
-        isOpen={showConfirmModal}
-        onClose={() => setShowConfirmModal(false)}
-        onConfirm={confirmModalProps.onConfirm}
-        title={confirmModalProps.title}
-        message={confirmModalProps.message}
-        confirmText="Enviar Link"
-        cancelText="Cancelar"
-      />
-    </>
-  );
-};
-
-// ✅ COMPONENTE SIMPLES DE WHATSAPP
-interface WhatsAppButtonProps {
-  video: CloudinaryVideo;
-  size?: 'small' | 'medium' | 'large';
-  variant?: 'primary' | 'secondary' | 'minimal';
-}
-
-const WhatsAppButton: React.FC<WhatsAppButtonProps> = ({ 
-  video, 
-  size = 'medium', 
-  variant = 'secondary'
-}) => {
-  const sizeClasses = {
-    small: 'px-2 py-1 text-xs',
-    medium: 'px-3 py-2 text-sm',
-    large: 'px-4 py-3 text-base'
-  };
-
-  const variantClasses = {
-    primary: 'bg-green-600 text-white hover:bg-green-700',
-    secondary: 'bg-white text-green-600 border border-green-600 hover:bg-green-50',
-    minimal: 'text-green-600 hover:text-green-700 hover:bg-green-50'
-  };
-
-  const iconSize = {
-    small: 'w-3 h-3',
-    medium: 'w-4 h-4',
-    large: 'w-5 h-5'
-  };
-
-  return (
-    <button
-      onClick={(e) => {
-        e.stopPropagation();
-        shareOnWhatsApp(video);
-      }}
-      className={`
-        ${sizeClasses[size]} 
-        ${variantClasses[variant]}
-        rounded transition-colors flex items-center justify-center gap-2
-        ${variant === 'minimal' ? 'p-2' : ''}
-      `}
-      title="Compartilhar no WhatsApp"
-    >
-      <MessageCircle className={iconSize[size]} />
-      {variant !== 'minimal' && (size === 'large' ? 'Compartilhar no WhatsApp' : 'WhatsApp')}
-    </button>
-  );
-};
-
 // Classe para gerenciar autenticação
 class SupabaseClient {
   private url: string;
@@ -702,6 +356,72 @@ const VideoThumbnail: React.FC<VideoThumbnailProps> = ({ video, onClick }) => {
       </div>
       
       <div className="absolute inset-0 border-2 border-transparent group-hover:border-blue-500/50 rounded-lg transition-colors duration-300 pointer-events-none"></div>
+    </div>
+  );
+};
+
+// ShareButton component for sharing video links (WhatsApp and copy link)
+interface ShareButtonProps {
+  video: CloudinaryVideo;
+  size?: 'medium' | 'large';
+  className?: string;
+}
+
+const ShareButton: React.FC<ShareButtonProps> = ({ video, size = 'medium', className = '' }) => {
+  const [copied, setCopied] = useState(false);
+
+  const getShareUrl = () => {
+    // Use the secure_url as the shareable link
+    return video.secure_url;
+  };
+
+  const handleCopy = async () => {
+    try {
+      await navigator.clipboard.writeText(getShareUrl());
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    } catch (err) {
+      setCopied(false);
+    }
+  };
+
+  const handleWhatsApp = () => {
+    const url = encodeURIComponent(getShareUrl());
+    const title = encodeURIComponent(video.context?.custom?.title || video.display_name || '');
+    const text = title ? `${title} - ${url}` : url;
+    window.open(`https://wa.me/?text=${text}`, '_blank');
+  };
+
+  return (
+    <div className={`flex gap-2 ${className}`}>
+      <button
+        type="button"
+        onClick={handleWhatsApp}
+        className={`bg-green-600 text-white px-3 py-2 rounded text-sm hover:bg-green-700 transition-colors flex items-center gap-2 ${size === 'large' ? 'min-h-[44px] px-4 py-3' : ''}`}
+        title="Compartilhar no WhatsApp"
+      >
+        <MessageCircle className="w-4 h-4" />
+        WhatsApp
+      </button>
+      <button
+        type="button"
+        onClick={handleCopy}
+        className={`bg-gray-200 text-gray-700 px-3 py-2 rounded text-sm hover:bg-gray-300 transition-colors flex items-center gap-2 ${size === 'large' ? 'min-h-[44px] px-4 py-3' : ''}`}
+        title="Copiar link do vídeo"
+      >
+        <Share2 className="w-4 h-4" />
+        {copied ? 'Copiado!' : 'Copiar Link'}
+      </button>
+      <a
+        href={getShareUrl()}
+        target="_blank"
+        rel="noopener noreferrer"
+        className={`bg-blue-100 text-blue-700 px-3 py-2 rounded text-sm hover:bg-blue-200 transition-colors flex items-center gap-2 ${size === 'large' ? 'min-h-[44px] px-4 py-3' : ''}`}
+        title="Abrir vídeo em nova aba"
+      >
+        <ExternalLink className="w-4 h-4" />
+        Abrir
+      </a>
     </div>
   );
 };
@@ -1543,33 +1263,7 @@ const VideoApp = () => {
                          </>
                        )}
                      </button>
-                     
-                     {/* Botão WhatsApp inteligente */}
-                     <button
-                       onClick={(e) => {
-                         e.stopPropagation();
-                         const videoSizeMB = video.bytes ? (video.bytes / (1024 * 1024)) : 0;
-                         
-                         // Se arquivo é pequeno (≤16MB), tenta compartilhar arquivo, senão envia link
-                         if (videoSizeMB > 0 && videoSizeMB <= 16) {
-                           downloadAndShareVideo(video, () => {
-                             // Se falhar, envia link como fallback
-                             shareOnWhatsApp(video);
-                           });
-                         } else {
-                           // Arquivo muito grande ou tamanho desconhecido - envia link
-                           shareOnWhatsApp(video);
-                         }
-                       }}
-                       className="flex-1 bg-green-600 text-white px-3 py-2 rounded text-sm hover:bg-green-700 transition-colors flex items-center justify-center gap-2"
-                       title={video.bytes && (video.bytes / (1024 * 1024)) <= 16 
-                         ? "Compartilhar arquivo no WhatsApp" 
-                         : "Compartilhar link no WhatsApp"
-                       }
-                     >
-                       <MessageCircle className="w-4 h-4" />
-                       WhatsApp
-                     </button>
+                     <ShareButton video={video} size="medium" className="flex-1" />
                    </div>
                  </div>
                </div>
@@ -1688,30 +1382,7 @@ const VideoApp = () => {
                    </button>
                    
                    {/* Botão WhatsApp inteligente */}
-                   <button
-                     onClick={() => {
-                       const videoSizeMB = selectedVideo.bytes ? (selectedVideo.bytes / (1024 * 1024)) : 0;
-                       
-                       // Se arquivo é pequeno (≤16MB), tenta compartilhar arquivo, senão envia link
-                       if (videoSizeMB > 0 && videoSizeMB <= 16) {
-                         downloadAndShareVideo(selectedVideo, () => {
-                           // Se falhar, envia link como fallback
-                           shareOnWhatsApp(selectedVideo);
-                         });
-                       } else {
-                         // Arquivo muito grande ou tamanho desconhecido - envia link
-                         shareOnWhatsApp(selectedVideo);
-                       }
-                     }}
-                     className="bg-green-600 text-white px-4 py-3 rounded hover:bg-green-700 transition-colors flex items-center justify-center gap-2 min-h-[44px]"
-                     title={selectedVideo.bytes && (selectedVideo.bytes / (1024 * 1024)) <= 16 
-                       ? "Compartilhar arquivo no WhatsApp" 
-                       : "Compartilhar link no WhatsApp"
-                     }
-                   >
-                     <MessageCircle className="w-4 h-4" />
-                     WhatsApp
-                   </button>
+                   <ShareButton video={selectedVideo} size="large" className="min-h-[44px]" />
                  </div>
                </div>
              </div>
