@@ -991,8 +991,16 @@ const VideoApp = () => {
   // Se não estiver logado, mostrar apenas tela de login
   if (!user) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center p-5">
-        <div className="bg-white rounded-lg shadow-xl p-8 w-full max-w-md mx-5">
+      <div className="min-h-screen bg-black flex items-center justify-center p-5 relative">
+        {/* Imagem de fundo */}
+        <img
+          src="https://cdn.prod.website-files.com/6363bf2ec153162f0b70deaf/66eb0f47a345796a822e6154_fundo_form_leads.avif"
+          alt="Fundo login"
+          className="absolute inset-0 w-full h-full object-cover z-0"
+          style={{ pointerEvents: 'none', userSelect: 'none' }}
+        />
+        {/* Formulário de login */}
+        <div className="bg-white rounded-lg shadow-xl p-8 w-full max-w-md mx-5 z-20 relative">
           <div className="text-center mb-8">
             <h1 className="text-3xl font-bold text-gray-800 mb-2">CARBON Content</h1>
             <p className="text-gray-600">Biblioteca de Vídeos</p>
@@ -1007,8 +1015,8 @@ const VideoApp = () => {
                 type="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                placeholder="seu@empresa.com"
+                className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-black focus:border-transparent"
+                placeholder="seu-email@carbon.cars"
                 required
                 disabled={isLoggingIn}
               />
@@ -1022,7 +1030,7 @@ const VideoApp = () => {
                 type="password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-black focus:border-transparent"
                 placeholder="Sua senha"
                 required
                 disabled={isLoggingIn}
@@ -1065,7 +1073,7 @@ const VideoApp = () => {
             <button
               type="submit"
               disabled={isLoggingIn}
-              className="w-full bg-blue-600 text-white py-3 px-4 rounded-lg hover:bg-blue-700 transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+              className="w-full bg-gray-700 text-white py-3 px-4 rounded-lg transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {isLoggingIn ? (
                 <span className="flex items-center justify-center">
