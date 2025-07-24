@@ -994,7 +994,7 @@ const VideoApp = () => {
       <div className="min-h-screen bg-black flex items-center justify-center p-5 relative">
         {/* Imagem de fundo */}
         <img
-          src="https://cdn.prod.website-files.com/6363bf2ec153162f0b70deaf/66eb0f47a345796a822e6154_fundo_form_leads.avif"
+          src="/bg_carbon.avif"
           alt="Fundo login"
           className="absolute inset-0 w-full h-full object-cover z-0"
           style={{ pointerEvents: 'none', userSelect: 'none' }}
@@ -1002,6 +1002,11 @@ const VideoApp = () => {
         {/* Formulário de login */}
         <div className="bg-white rounded-lg shadow-xl p-8 w-full max-w-md mx-5 z-20 relative">
           <div className="text-center mb-8">
+            <img
+              src="/logo_carbon_content_b.png"
+              alt="Logo Carbon Content"
+              className="w-1/2 mx-auto mb-4"
+            />
             <h1 className="text-3xl font-bold text-gray-800 mb-2">CARBON Content</h1>
             <p className="text-gray-600">Biblioteca de Vídeos</p>
           </div>
@@ -1103,7 +1108,7 @@ const VideoApp = () => {
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
-      <header className="bg-blue-600 text-white p-4 shadow-lg">
+      <header className="bg-black text-white p-4 shadow-lg">
         <div className="max-w-6xl mx-auto flex justify-between items-center">
           <div>
             <h1 className="text-2xl font-bold">CARBON Content</h1>
@@ -1111,7 +1116,7 @@ const VideoApp = () => {
           <div className="flex items-center gap-4">
             <button 
               onClick={handleLogout}
-              className="bg-blue-700 px-4 py-2 rounded hover:bg-blue-800 transition-colors flex items-center gap-2"
+              className="bg-gray-700 px-4 py-2 rounded hover:bg-gray-800 transition-colors flex items-center gap-2"
             >
               <LogOut className="w-4 h-4" />
               Sair
@@ -1125,7 +1130,7 @@ const VideoApp = () => {
         <div className="bg-white rounded-lg shadow-md p-6 mb-6">
           <h2 className="text-xl font-bold mb-4 flex items-center">
             <Search className="w-5 h-5 mr-2" />
-            Buscar e Filtrar Vídeos
+            Buscar vídeos
           </h2>
          
          <div className="space-y-4">
