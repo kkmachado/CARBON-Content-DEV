@@ -18,7 +18,7 @@ import {
   Car,
   Tag,
   Filter,
-  MessageCircle, // ✅ NOVO ÍCONE PARA WHATSAPP
+  MessageCircle, // ✅ NOVO ÍCONO PARA WHATSAPP
   Share2,        // ✅ ÍCONE ALTERNATIVO
   ExternalLink   // ✅ ÍCONE PARA LINK EXTERNO
 } from 'lucide-react';
@@ -71,8 +71,6 @@ interface ApiResponse<T> {
 }
 
 // ✅ FUNÇÕES PARA WHATSAPP
-// Remover: generateWhatsAppMessage, shareOnWhatsApp, downloadAndShareVideo, WhatsAppShareOptions, WhatsAppButton
-// Manter apenas shareVideoViaWebShare
 const shareVideoViaWebShare = async (video: CloudinaryVideo) => {
   try {
     const response = await fetch(video.secure_url);
@@ -147,148 +145,8 @@ const ConfirmModal: React.FC<ConfirmModalProps> = ({
     </div>
   );
 };
-interface WhatsAppShareOptionsProps {
-  video: CloudinaryVideo;
-  size?: 'small' | 'medium' | 'large';
-}
 
-// ✅ COMPONENTE COM OPÇÕES DE COMPARTILHAMENTO
-interface WhatsAppShareOptionsProps {
-  video: CloudinaryVideo;
-  size?: 'small' | 'medium' | 'large';
-}
 
-const WhatsAppShareOptions: React.FC<WhatsAppShareOptionsProps> = ({ video, size = 'medium' }) => {
-  const [showOptions, setShowOptions] = useState(false);
-  const [downloading, setDownloading] = useState(false);
-  const [showConfirmModal, setShowConfirmModal] = useState(false);
-  const [confirmModalProps, setConfirmModalProps] = useState({
-    title: '',
-    message: '',
-    onConfirm: () => {}
-  });
-  
-  const videoSizeMB = video.bytes ? (video.bytes / (1024 * 1024)) : 0;
-  
-  const showErrorModal = (title: string, message: string, onConfirm?: () => void) => {
-    setConfirmModalProps({
-      title,
-      message,
-      onConfirm: onConfirm || (() => {})
-    });
-    setShowConfirmModal(true);
-  };
-  
-  const handleDownloadAndShare = async () => {
-    setDownloading(true);
-    try {
-      // Originalmente, esta função tinha lógica de download e compartilhamento.
-      // Agora, ela apenas chama a função de compartilhamento webShare.
-      await shareVideoViaWebShare(video);
-    } catch (error) {
-      // Callback de erro - mostrar modal ao invés de confirm
-      showErrorModal(
-        'Erro no Download',
-        'Não foi possível baixar o vídeo para compartilhar.\n\nDeseja enviar o link do vídeo pelo WhatsApp?',
-        () => shareVideoViaWebShare(video)
-      );
-    } finally {
-      setDownloading(false);
-      setShowOptions(false);
-    }
-  };
-  
-  const handleShareLink = () => {
-    shareVideoViaWebShare(video);
-    setShowOptions(false);
-  };
-  
-  return (
-    <>
-      <div className="relative">
-        <button
-          onClick={() => setShowOptions(!showOptions)}
-          className={`
-            ${size === 'small' ? 'px-2 py-1 text-xs' : size === 'large' ? 'px-4 py-3 text-base' : 'px-3 py-2 text-sm'}
-            bg-green-600 text-white rounded hover:bg-green-700 transition-colors flex items-center justify-center gap-2
-          `}
-          title="Opções de compartilhamento WhatsApp"
-        >
-          <MessageCircle className={size === 'small' ? 'w-3 h-3' : size === 'large' ? 'w-5 h-5' : 'w-4 h-4'} />
-          {size !== 'small' && 'WhatsApp'}
-          {showOptions ? (
-            <X className="w-3 h-3" />
-          ) : (
-            <ExternalLink className="w-3 h-3" />
-          )}
-        </button>
-        
-        {showOptions && (
-          <div className="absolute top-full right-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg z-20 min-w-48">
-            <div className="p-2">
-              <div className="text-xs text-gray-500 mb-2 px-2">
-                Tamanho: {videoSizeMB > 0 ? `${videoSizeMB.toFixed(1)}MB` : 'Desconhecido'}
-              </div>
-              
-              {videoSizeMB <= 16 && videoSizeMB > 0 && (
-                <button
-                  onClick={handleDownloadAndShare}
-                  disabled={downloading}
-                  className="w-full text-left px-3 py-2 hover:bg-gray-50 rounded flex items-center gap-2 text-sm disabled:opacity-50"
-                >
-                  {downloading ? (
-                    <Loader2 className="w-4 h-4 animate-spin text-green-600" />
-                  ) : (
-                    <Download className="w-4 h-4 text-green-600" />
-                  )}
-                  <div>
-                    <div className="font-medium">Compartilhar arquivo</div>
-                    <div className="text-xs text-gray-500">Baixa e compartilha o vídeo</div>
-                  </div>
-                </button>
-              )}
-              
-              {videoSizeMB > 16 && (
-                <div className="px-3 py-2 text-xs text-orange-600 bg-orange-50 rounded mb-2">
-                  ⚠️ Arquivo muito grande para WhatsApp (limite: 16MB)
-                </div>
-              )}
-              
-              <button
-                onClick={handleShareLink}
-                className="w-full text-left px-3 py-2 hover:bg-gray-50 rounded flex items-center gap-2 text-sm"
-              >
-                <Share2 className="w-4 h-4 text-green-600" />
-                <div>
-                  <div className="font-medium">Compartilhar link</div>
-                  <div className="text-xs text-gray-500">Envia URL para assistir online</div>
-                </div>
-              </button>
-            </div>
-          </div>
-        )}
-        
-        {showOptions && (
-          <div 
-            className="fixed inset-0 z-10" 
-            onClick={() => setShowOptions(false)}
-          />
-        )}
-      </div>
-
-      {/* Modal de confirmação personalizado */}
-      <ConfirmModal
-        isOpen={showConfirmModal}
-        onClose={() => setShowConfirmModal(false)}
-        onConfirm={confirmModalProps.onConfirm}
-        title={confirmModalProps.title}
-        message={confirmModalProps.message}
-        confirmText="Enviar Link"
-        cancelText="Cancelar"
-      />
-    </>
-  );
-};
 
 // Classe para gerenciar autenticação
 class SupabaseClient {
@@ -325,20 +183,27 @@ class SupabaseClient {
       });
 
       const data = await response.json();
+      console.log('[DEBUG LOGIN] Resposta bruta da API Supabase:', data); // DEBUG LOG
       
-      if (data.error) throw new Error(data.error.message);
+      if (data.error) {
+        console.error('[DEBUG LOGIN] Erro na resposta da API Supabase:', data.error); // DEBUG LOG
+        throw new Error(data.error.message);
+      }
 
       this.token = data.access_token;
       
       if (this.token && data.user) {
         localStorage.setItem('supabase_token', this.token);
         localStorage.setItem('supabase_user', JSON.stringify(data.user));
+        console.log('[DEBUG LOGIN] Login bem-sucedido. Token e usuário salvos.'); // DEBUG LOG
       } else {
+        console.error('[DEBUG LOGIN] Token ou objeto de usuário ausente na resposta.', { token: this.token, user: data.user }); // DEBUG LOG
         throw new Error('Dados de autenticação inválidos');
       }
 
       return { data, error: null };
     } catch (error: any) {
+      console.error('[DEBUG LOGIN] Erro geral no signIn:', error); // DEBUG LOG
       return { data: null as any, error };
     }
   }
@@ -416,7 +281,7 @@ class CloudinaryClient {
       console.error('❌ Erro na busca via backend:', error);
       
       if (error.message.includes('Failed to fetch')) {
-        throw new Error('Backend não está rodando. Execute: npm run start:backend');
+        alert('⚠️ Backend não está rodando!\n\nPara resolver:\n1. Abra um novo terminal\n2. cd backend\n3. npm install\n4. npm run dev');
       }
       
       throw error;
@@ -449,7 +314,7 @@ class CloudinaryClient {
       console.error('❌ Erro ao carregar biblioteca:', error);
       
       if (error.message.includes('Failed to fetch')) {
-        throw new Error('Backend não está rodando. Execute: npm run start:backend');
+        alert('⚠️ Backend não está rodando!\n\nPara resolver:\n1. Abra um novo terminal\n2. cd backend\n3. npm install\n4. npm run dev');
       }
       
       throw error;
@@ -588,9 +453,17 @@ const VideoApp = () => {
   const [videos, setVideos] = useState<CloudinaryVideo[]>([]);
   const [loading, setLoading] = useState(false);
   const [selectedVideo, setSelectedVideo] = useState<CloudinaryVideo | null>(null);
+  
+  // Estados para os valores dos inputs (o que o usuário digita)
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedMontadora, setSelectedMontadora] = useState('');
   const [selectedTag, setSelectedTag] = useState('');
+
+  // Estados para os filtros APLICADOS (o que realmente filtra os vídeos)
+  const [appliedSearchTerm, setAppliedSearchTerm] = useState('');
+  const [appliedSelectedMontadora, setAppliedSelectedMontadora] = useState('');
+  const [appliedSelectedTag, setAppliedSelectedTag] = useState('');
+
   const [availableMontadoras, setAvailableMontadoras] = useState<string[]>([]);
   const [availableTags, setAvailableTags] = useState<string[]>([]);
   const supabase = useRef(new SupabaseClient());
@@ -634,12 +507,14 @@ const VideoApp = () => {
     checkBackend();
   }, []);
 
-  // Carregar vídeos do Cloudinary quando usuário logar
+  // Carregar vídeos do Cloudinary quando usuário logar ou quando filtros aplicados mudarem
   useEffect(() => {
     if (user) {
-      loadAllVideos();
+      // Quando o componente carrega ou o usuário loga, carregamos todos os vídeos
+      // A filtragem inicial será feita com os estados de filtro aplicados (que inicialmente são vazios)
+      loadAllVideos(); 
     }
-  }, [user]);
+  }, [user]); // Depende apenas do usuário logado
 
   // Funções para extrair montadoras e tags
   const extractMontadoras = (videos: CloudinaryVideo[]): string[] => {
@@ -721,9 +596,10 @@ const VideoApp = () => {
   const getFilteredVideos = (): CloudinaryVideo[] => {
     let filtered = videos;
     
-    filtered = filterVideosBySearchTerm(filtered, searchTerm);
-    filtered = filterVideosByMontadora(filtered, selectedMontadora);
-    filtered = filterVideosByTag(filtered, selectedTag);
+    // Agora usamos os estados 'applied' para a filtragem real
+    filtered = filterVideosBySearchTerm(filtered, appliedSearchTerm);
+    filtered = filterVideosByMontadora(filtered, appliedSelectedMontadora);
+    filtered = filterVideosByTag(filtered, appliedSelectedTag);
     
     return filtered;
   };
@@ -742,7 +618,7 @@ const VideoApp = () => {
     console.log('🏷️ Tags encontradas:', tags);
   }, [videos]);
 
-  // Carregar todos os vídeos
+  // Carregar todos os vídeos (função base)
   const loadAllVideos = async () => {
     if (!user) return;
 
@@ -767,26 +643,33 @@ const VideoApp = () => {
     }
   };
 
-  // Buscar vídeos por termo
-  const searchVideos = async (term: string) => {
+  // Buscar vídeos por termo (agora usa os estados 'applied')
+  const executeSearch = async () => {
     if (!user) return;
 
     try {
       setLoading(true);
-      console.log(`🔍 Buscando vídeos com termo: "${term}"`);
+      console.log(`🔍 Buscando vídeos com termo: "${appliedSearchTerm}"`);
       
-      if (!term.trim()) {
+      if (!appliedSearchTerm.trim() && !appliedSelectedMontadora && !appliedSelectedTag) {
+        // Se não houver nenhum termo de busca ou filtro aplicado, carrega todos os vídeos
         await loadAllVideos();
         return;
       }
       
-      const cloudinaryVideos = await cloudinary.current.searchVideos(term);
-      console.log('✅ Vídeos encontrados:', cloudinaryVideos);
-      setVideos(cloudinaryVideos);
+      // Se houver termo de busca, usa a API de busca do Cloudinary
+      const cloudinaryVideos = await cloudinary.current.searchVideos(appliedSearchTerm);
+      
+      // Aplica os filtros de montadora e tag localmente
+      let filteredResults = filterVideosByMontadora(cloudinaryVideos, appliedSelectedMontadora);
+      filteredResults = filterVideosByTag(filteredResults, appliedSelectedTag);
+
+      console.log('✅ Vídeos encontrados e filtrados:', filteredResults);
+      setVideos(filteredResults);
     } catch (error: any) {
       console.error('❌ Erro ao buscar vídeos:', error);
       
-      if (error.message.includes('Backend não está rodando')) {
+      if (error.message.includes('Failed to fetch')) {
         alert('⚠️ Backend não está rodando!\n\nPara resolver:\n1. Abra um novo terminal\n2. cd backend\n3. npm install\n4. npm run dev');
       } else {
         alert(`Erro na busca: ${error.message}`);
@@ -798,26 +681,38 @@ const VideoApp = () => {
     }
   };
 
-  // Buscar com debounce
+  // Efeito para acionar a busca quando os *filtros aplicados* mudam
+  // Isso garante que a lista de vídeos só é atualizada quando o botão é clicado
   useEffect(() => {
-    if (!user) return;
-    
-    const timeoutId = setTimeout(() => {
-      if (searchTerm.trim()) {
-        searchVideos(searchTerm);
-      } else {
-        loadAllVideos();
-      }
-    }, 500);
+    if (user) {
+      executeSearch();
+    }
+  }, [user, appliedSearchTerm, appliedSelectedMontadora, appliedSelectedTag]);
 
-    return () => clearTimeout(timeoutId);
-  }, [searchTerm, user]);
+
+  // Função para acionar a busca ao clicar no botão
+  const handleSearchButtonClick = () => {
+    // Copia APENAS o valor do input de busca para o estado "aplicado"
+    setAppliedSearchTerm(searchTerm);
+    // Os filtros de montadora e tag já são atualizados nos seus respectivos onChanges
+  };
+
+  // Função para lidar com a tecla Enter no campo de busca
+  const handleSearchInputKeyPress = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter') {
+      handleSearchButtonClick();
+    }
+  };
 
   // Limpar todos os filtros
   const clearAllFilters = () => {
     setSearchTerm('');
     setSelectedMontadora('');
     setSelectedTag('');
+    setAppliedSearchTerm(''); // Limpa também os filtros aplicados
+    setAppliedSelectedMontadora('');
+    setAppliedSelectedTag('');
+    // A chamada para loadAllVideos() será feita pelo useEffect acima quando os estados aplicados ficarem vazios
   };
 
   // Login
@@ -967,8 +862,6 @@ const VideoApp = () => {
   };
 
   // ✅ FUNÇÕES PARA WHATSAPP
-  // Remover: generateWhatsAppMessage, shareOnWhatsApp, downloadAndShareVideo, WhatsAppShareOptions, WhatsAppButton
-  // Manter apenas shareVideoViaWebShare
   const shareVideoViaWebShare = async (video: CloudinaryVideo) => {
     try {
       const response = await fetch(video.secure_url);
@@ -1001,14 +894,12 @@ const VideoApp = () => {
         />
         {/* Formulário de login */}
         <div className="bg-white rounded-lg shadow-xl p-8 w-full max-w-md mx-5 z-20 relative">
-          <div className="text-center mb-8">
+          <div className="text-center mb-10 mt-5">
             <img
               src="/logo_carbon_content_b.png"
               alt="Logo Carbon Content"
               className="w-1/2 mx-auto mb-4"
             />
-            <h1 className="text-3xl font-bold text-gray-800 mb-2">CARBON Content</h1>
-            <p className="text-gray-600">Biblioteca de Vídeos</p>
           </div>
           
           <form onSubmit={handleLogin} className="space-y-6">
@@ -1146,8 +1037,9 @@ const VideoApp = () => {
                    type="text"
                    value={searchTerm}
                    onChange={(e) => setSearchTerm(e.target.value)}
-                   className="w-full p-3 pr-10 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                   placeholder="Digite palavras-chave, título, tags..."
+                   onKeyDown={handleSearchInputKeyPress} // Adicionado: Aciona busca no Enter
+                   className="w-full p-3 pr-10 border border-gray-300 rounded-md border-transparent focus:border-transparent"
+                   placeholder="Digite palavras-chave, marca, modelo..."
                  />
                  {searchTerm && (
                    <button
@@ -1169,8 +1061,11 @@ const VideoApp = () => {
                <div className="relative">
                  <select
                    value={selectedMontadora}
-                   onChange={(e) => setSelectedMontadora(e.target.value)}
-                   className="w-full p-3 pr-10 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent appearance-none bg-white"
+                   onChange={(e) => {
+                     setSelectedMontadora(e.target.value);
+                     setAppliedSelectedMontadora(e.target.value); // Atualiza o filtro aplicado imediatamente
+                   }}
+                   className="w-full p-3 pr-10 border border-gray-300 rounded-md focus:border-transparent appearance-none bg-white"
                  >
                    <option value="">Todas as montadoras</option>
                    {availableMontadoras.map((montadora) => (
@@ -1181,7 +1076,10 @@ const VideoApp = () => {
                  </select>
                  {selectedMontadora && (
                    <button
-                     onClick={() => setSelectedMontadora('')}
+                     onClick={() => {
+                       setSelectedMontadora('');
+                       setAppliedSelectedMontadora(''); // Limpa o filtro aplicado
+                     }}
                      className="absolute right-8 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors"
                      title="Limpar filtro de montadora"
                    >
@@ -1202,8 +1100,11 @@ const VideoApp = () => {
                <div className="relative">
                  <select
                    value={selectedTag}
-                   onChange={(e) => setSelectedTag(e.target.value)}
-                   className="w-full p-3 pr-10 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent appearance-none bg-white"
+                   onChange={(e) => {
+                     setSelectedTag(e.target.value);
+                     setAppliedSelectedTag(e.target.value); // Atualiza o filtro aplicado imediatamente
+                   }}
+                   className="w-full p-3 pr-10 border border-gray-300 rounded-md focus:border-transparent appearance-none bg-white"
                  >
                    <option value="">Todas as tags</option>
                    {availableTags.map((tag) => (
@@ -1214,7 +1115,10 @@ const VideoApp = () => {
                  </select>
                  {selectedTag && (
                    <button
-                     onClick={() => setSelectedTag('')}
+                     onClick={() => {
+                       setSelectedTag('');
+                       setAppliedSelectedTag(''); // Limpa o filtro aplicado
+                     }}
                      className="absolute right-8 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors"
                      title="Limpar filtro de tag"
                    >
@@ -1232,18 +1136,19 @@ const VideoApp = () => {
            <div className="flex flex-wrap items-center justify-between gap-4 pt-4 border-t">
              <div className="flex items-center gap-4">
                <button
-                 onClick={() => searchVideos(searchTerm)}
-                 className="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2"
+                 onClick={handleSearchButtonClick} // Chama a função que atualiza o termo de busca aplicado
+                 className="bg-gray-700 text-white px-6 py-2 rounded-md hover:bg-gray-800 transition-colors flex items-center gap-2"
                  disabled={loading}
                >
                  <Search className="w-4 h-4" />
                  Buscar
                </button>
                
-               {(searchTerm || selectedMontadora || selectedTag) && (
+               {/* Botão "Limpar Filtros" aparece apenas com filtros aplicados */}
+               {(appliedSearchTerm || appliedSelectedMontadora || appliedSelectedTag) && (
                  <button
                    onClick={clearAllFilters}
-                   className="bg-gray-500 text-white px-4 py-2 rounded-lg hover:bg-gray-600 transition-colors flex items-center gap-2"
+                   className="bg-red-100 text-red-600 px-4 py-2 rounded-md hover:bg-red-200 transition-colors flex items-center gap-2"
                    title="Limpar todos os filtros"
                  >
                    <X className="w-4 h-4" />
@@ -1252,24 +1157,24 @@ const VideoApp = () => {
                )}
              </div>
 
-             {/* Resumo dos filtros ativos */}
+             {/* Resumo dos filtros ativos (agora usando os estados 'applied') */}
              <div className="text-sm text-gray-600">
-               {searchTerm && (
+               {appliedSearchTerm && (
                  <span className="bg-blue-100 text-blue-800 px-2 py-1 rounded-full mr-2">
-                   Busca: "{searchTerm}"
+                   Busca: "{appliedSearchTerm}"
                  </span>
                )}
-               {selectedMontadora && (
+               {appliedSelectedMontadora && (
                  <span className="bg-green-100 text-green-800 px-2 py-1 rounded-full mr-2">
-                   Montadora: {selectedMontadora.toUpperCase()}
+                   Montadora: {appliedSelectedMontadora.toUpperCase()}
                  </span>
                )}
-               {selectedTag && (
+               {appliedSelectedTag && (
                  <span className="bg-purple-100 text-purple-800 px-2 py-1 rounded-full mr-2">
-                   Tag: {selectedTag}
+                   Tag: {appliedSelectedTag}
                  </span>
                )}
-               {!searchTerm && !selectedMontadora && !selectedTag && (
+               {!appliedSearchTerm && !appliedSelectedMontadora && !appliedSelectedTag && (
                  <span className="text-gray-500">Nenhum filtro ativo</span>
                )}
              </div>
@@ -1296,7 +1201,7 @@ const VideoApp = () => {
             <div className="text-center py-12">
               <Loader2 className="animate-spin h-16 w-16 text-blue-600 mx-auto" />
               <p className="mt-4 text-lg">
-                {searchTerm ? `Buscando "${searchTerm}"...` : 'Carregando biblioteca de vídeos...'}
+                {appliedSearchTerm ? `Buscando "${appliedSearchTerm}"...` : 'Carregando biblioteca de vídeos...'}
               </p>
               <p className="text-sm text-gray-500 mt-2">CARBON Content</p>
             </div>
@@ -1311,25 +1216,12 @@ const VideoApp = () => {
                   <strong>Filtros ativos:</strong>
                 </p>
                 <ul className="text-xs text-yellow-700 mt-2 text-left">
-                  {searchTerm && <li>• Busca: "{searchTerm}"</li>}
-                  {selectedMontadora && <li>• Montadora: {selectedMontadora.toUpperCase()}</li>}
-                  {selectedTag && <li>• Tag: {selectedTag}</li>}
+                  {appliedSearchTerm && <li>• Busca: "{appliedSearchTerm}"</li>}
+                  {appliedSelectedMontadora && <li>• Montadora: {appliedSelectedMontadora.toUpperCase()}</li>}
+                  {appliedSelectedTag && <li>• Tag: {appliedSelectedTag}</li>}
                   <li>• Tente remover alguns filtros para ver mais resultados</li>
                 </ul>
               </div>
-              <div className="mt-4 flex gap-2 justify-center">
-                <button
-                  onClick={clearAllFilters}
-                  className="bg-gray-600 text-white px-4 py-2 rounded-lg hover:bg-gray-700"
-                >
-                  Limpar Todos os Filtros
-                </button>
-                <button
-                  onClick={() => searchVideos(searchTerm)}
-                  className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700">
-                  Tentar Novamente
-               </button>
-             </div>
            </div>
           ) : filteredVideos.length === 0 ? (
             <div className="text-center py-12">
@@ -1350,7 +1242,7 @@ const VideoApp = () => {
               </div>
               <div className="mt-4 flex gap-2 justify-center">
                 <button
-                  onClick={() => loadAllVideos()}
+                  onClick={clearAllFilters}
                   className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700">
                   Recarregar Biblioteca
                </button>
@@ -1371,11 +1263,12 @@ const VideoApp = () => {
                    {video.metadata?.montadora && (
                      <div className="flex flex-wrap gap-1 mb-3">
                        <span 
-                         className="text-green-600 text-sm flex items-center gap-1 w-fit cursor-pointer hover:text-green-800 hover:underline"
+                         className="text-gray-400 text-sm flex items-center gap-1 w-fit cursor-pointer hover:text-gray-600 transition-all"
                          onClick={(e) => {
                            e.stopPropagation();
                            if (video.metadata?.montadora) {
                              setSelectedMontadora(video.metadata.montadora);
+                             setAppliedSelectedMontadora(video.metadata.montadora);
                            }
                          }}
                          title={`Filtrar por montadora: ${video.metadata.montadora.toUpperCase()}`}
@@ -1402,10 +1295,11 @@ const VideoApp = () => {
                        {video.tags.slice(0, 3).map((tag: string, index: number) => (
                          <span 
                            key={index}
-                           className="bg-purple-100 text-purple-800 text-xs px-2 py-1 rounded-full flex items-center gap-1 cursor-pointer hover:bg-purple-200 transition-colors"
+                           className="bg-yellow-100 text-yellow-700 text-xs px-2 py-1 rounded-full flex items-center gap-1 cursor-pointer hover:bg-yellow-200 transition-colors"
                            onClick={(e) => {
                              e.stopPropagation();
                              setSelectedTag(tag);
+                             setAppliedSelectedTag(tag);
                            }}
                            title={`Filtrar por tag: ${tag}`}
                          >
@@ -1441,7 +1335,7 @@ const VideoApp = () => {
                      <button
                        onClick={() => handleDownload(video)}
                        disabled={downloadingVideos.has(video.public_id)}
-                       className="flex-1 bg-blue-600 text-white px-3 py-2 rounded text-sm hover:bg-blue-700 transition-colors flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                       className="flex-1 bg-gray-300 text-black px-3 py-2 rounded text-sm hover:bg-gray-400 transition-colors flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
                      >
                        {downloadingVideos.has(video.public_id) ? (
                          <>
@@ -1513,11 +1407,12 @@ const VideoApp = () => {
                {selectedVideo.metadata?.montadora && (
                  <div className="flex flex-wrap gap-1 mb-3">
                    <span 
-                     className="text-green-600 text-sm flex items-center gap-1 w-fit cursor-pointer hover:text-green-800 hover:underline"
+                     className="text-gray-400 text-sm flex items-center gap-1 w-fit cursor-pointer hover:text-gray-600 transition-all"
                      onClick={() => {
                        if (selectedVideo.metadata?.montadora) {
                          setSelectedMontadora(selectedVideo.metadata.montadora);
-                         setSelectedVideo(null);
+                         setAppliedSelectedMontadora(selectedVideo.metadata.montadora);
+                         setSelectedVideo(null); // Fecha o modal
                        }
                      }}
                      title={`Filtrar por montadora: ${selectedVideo.metadata.montadora.toUpperCase()}`}
@@ -1543,10 +1438,11 @@ const VideoApp = () => {
                      {selectedVideo.tags.map((tag: string, index: number) => (
                        <span 
                          key={index}
-                         className="bg-purple-100 text-purple-800 px-3 py-1 rounded-full text-sm flex items-center gap-1 cursor-pointer hover:bg-purple-200 transition-colors"
+                         className="bg-yellow-100 text-yellow-700 px-3 py-1 rounded-full text-sm flex items-center gap-1 cursor-pointer hover:bg-yellow-200 transition-colors"
                          onClick={() => {
                            setSelectedTag(tag);
-                           setSelectedVideo(null);
+                           setAppliedSelectedTag(tag);
+                           setSelectedVideo(null); // Fecha o modal
                          }}
                          title={`Filtrar por tag: ${tag}`}
                        >
@@ -1570,7 +1466,7 @@ const VideoApp = () => {
                    <button
                      onClick={() => handleDownload(selectedVideo)}
                      disabled={downloadingVideos.has(selectedVideo.public_id)}
-                     className="bg-blue-600 text-white px-4 py-3 rounded hover:bg-blue-700 transition-colors flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed min-h-[44px]"
+                     className="bg-gray-300 text-black px-4 py-2 rounded hover:bg-gray-400 transition-colors flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed min-h-[44px]"
                    >
                      {downloadingVideos.has(selectedVideo.public_id) ? (
                        <>
@@ -1590,7 +1486,7 @@ const VideoApp = () => {
                      onClick={() => {
                        shareVideoViaWebShare(selectedVideo);
                      }}
-                     className="bg-green-600 text-white px-4 py-3 rounded hover:bg-green-700 transition-colors flex items-center justify-center gap-2 min-h-[44px]"
+                     className="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700 transition-colors flex items-center justify-center gap-2 min-h-[44px]"
                      title="Compartilhar arquivo no WhatsApp"
                    >
                      <MessageCircle className="w-4 h-4" />
