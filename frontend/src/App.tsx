@@ -893,12 +893,12 @@ const VideoApp = () => {
           style={{ pointerEvents: 'none', userSelect: 'none' }}
         />
         {/* Formulário de login */}
-        <div className="bg-white rounded-lg shadow-xl p-8 w-full max-w-md mx-5 z-20 relative">
+        <div className="bg-white rounded-lg shadow-xl p-4 md:p-8 w-full max-w-md mx-5 z-20 relative">
           <div className="text-center mb-10 mt-5">
             <img
               src="/logo_carbon_content_b.png"
               alt="Logo Carbon Content"
-              className="w-1/2 mx-auto mb-4"
+              className="w-2/3 mx-auto mb-4"
             />
           </div>
           
@@ -911,7 +911,7 @@ const VideoApp = () => {
                 type="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-black focus:border-transparent"
+                className="w-full p-3 border border-gray-300 rounded-lg focus:border-transparent"
                 placeholder="seu-email@carbon.cars"
                 required
                 disabled={isLoggingIn}
@@ -926,7 +926,7 @@ const VideoApp = () => {
                 type="password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-black focus:border-transparent"
+                className="w-full p-3 border border-gray-300 rounded-lg focus:border-transparent"
                 placeholder="Sua senha"
                 required
                 disabled={isLoggingIn}
@@ -999,7 +999,7 @@ const VideoApp = () => {
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
-      <header className="bg-black text-white p-4 shadow-lg">
+      <header className="bg-black text-white py-4 px-6 shadow-lg">
         <div className="max-w-6xl mx-auto flex justify-between items-center">
           <div>
             <h1 className="text-2xl font-bold">CARBON Content</h1>
@@ -1016,9 +1016,9 @@ const VideoApp = () => {
         </div>
       </header>
 
-      <div className="max-w-6xl mx-auto p-6">
+      <div className="max-w-6xl mx-auto md:p-6">
         {/* Busca de Vídeos */}
-        <div className="bg-white rounded-lg shadow-md p-6 mb-6">
+        <div className="bg-white md:rounded-lg md:shadow-md p-6 md:mb-6">
           <h2 className="text-xl font-bold mb-4 flex items-center">
             <Search className="w-5 h-5 mr-2" />
             Buscar vídeos
@@ -1183,7 +1183,7 @@ const VideoApp = () => {
         </div>
 
         {/* Lista de Vídeos */}
-        <div className="bg-white rounded-lg shadow-md p-6">
+        <div className="bg-white md:rounded-lg md:shadow-md p-6 mt-10">
           <div className="mb-4">
             <div className="flex items-center mb-2 md:mb-0">
               <Library className="w-5 h-5 mr-2" />
@@ -1335,7 +1335,7 @@ const VideoApp = () => {
                      <button
                        onClick={() => handleDownload(video)}
                        disabled={downloadingVideos.has(video.public_id)}
-                       className="flex-1 bg-gray-300 text-black px-3 py-2 rounded text-sm hover:bg-gray-400 transition-colors flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                       className="hidden md:flex flex-1 bg-gray-300 text-black px-3 py-2 rounded text-sm hover:bg-gray-400 transition-colors flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
                      >
                        {downloadingVideos.has(video.public_id) ? (
                          <>
@@ -1466,7 +1466,7 @@ const VideoApp = () => {
                    <button
                      onClick={() => handleDownload(selectedVideo)}
                      disabled={downloadingVideos.has(selectedVideo.public_id)}
-                     className="bg-gray-300 text-black px-4 py-2 rounded hover:bg-gray-400 transition-colors flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed min-h-[44px]"
+                     className="hidden md:flex bg-gray-300 text-black px-4 py-2 rounded hover:bg-gray-400 transition-colors flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed min-h-[44px]"
                    >
                      {downloadingVideos.has(selectedVideo.public_id) ? (
                        <>
