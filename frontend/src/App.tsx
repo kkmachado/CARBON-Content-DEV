@@ -4,7 +4,6 @@ import {
   Download, 
   Play, 
   Clock, 
-  HardDrive, 
   Film, 
   X, 
   Calendar,
@@ -17,10 +16,7 @@ import {
   Hash,
   Car,
   Tag,
-  Filter,
-  MessageCircle, // ✅ NOVO ÍCONO PARA WHATSAPP
-  Share2,        // ✅ ÍCONE ALTERNATIVO
-  ExternalLink   // ✅ ÍCONE PARA LINK EXTERNO
+  MessageCircle // ✅ NOVO ÍCONO PARA WHATSAPP
 } from 'lucide-react';
 
 // Configuração do Supabase (usando REST API)
@@ -69,84 +65,6 @@ interface ApiResponse<T> {
   data: T;
   error: any;
 }
-
-// ✅ FUNÇÕES PARA WHATSAPP
-const shareVideoViaWebShare = async (video: CloudinaryVideo) => {
-  try {
-    const response = await fetch(video.secure_url);
-    if (!response.ok) throw new Error('Erro ao baixar vídeo');
-    const blob = await response.blob();
-    const fileName = `${video.context?.custom?.title || video.display_name}.${video.format}`;
-    const file = new File([blob], fileName, { type: `video/${video.format}` });
-    if (navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
-      await navigator.share({
-        title: video.context?.custom?.title || video.display_name,
-        text: video.context?.custom?.caption || '',
-        files: [file]
-      });
-    }
-  } catch (error) {
-    // Não faz nada se falhar
-  }
-};
-
-// ✅ COMPONENTE DE MODAL PARA CONFIRMAÇÕES
-interface ConfirmModalProps {
-  isOpen: boolean;
-  onClose: () => void;
-  onConfirm: () => void;
-  title: string;
-  message: string;
-  confirmText?: string;
-  cancelText?: string;
-}
-
-const ConfirmModal: React.FC<ConfirmModalProps> = ({
-  isOpen,
-  onClose,
-  onConfirm,
-  title,
-  message,
-  confirmText = 'Sim',
-  cancelText = 'Cancelar'
-}) => {
-  if (!isOpen) return null;
-
-  return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-lg w-full max-w-md">
-        <div className="p-6">
-          <div className="flex items-center mb-4">
-            <AlertCircle className="w-6 h-6 text-orange-500 mr-3" />
-            <h3 className="text-lg font-bold text-gray-800">{title}</h3>
-          </div>
-          
-          <p className="text-gray-600 mb-6 whitespace-pre-line">{message}</p>
-          
-          <div className="flex gap-3 justify-end">
-            <button
-              onClick={onClose}
-              className="px-4 py-2 text-gray-600 border border-gray-300 rounded hover:bg-gray-50 transition-colors"
-            >
-              {cancelText}
-            </button>
-            <button
-              onClick={() => {
-                onConfirm();
-                onClose();
-              }}
-              className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 transition-colors"
-            >
-              {confirmText}
-            </button>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-};
-
-
 
 // Classe para gerenciar autenticação
 class SupabaseClient {
@@ -867,12 +785,12 @@ const VideoApp = () => {
       const response = await fetch(video.secure_url);
       if (!response.ok) throw new Error('Erro ao baixar vídeo');
       const blob = await response.blob();
-      const fileName = `${video.context?.custom?.title || video.display_name}.${video.format}`;
+      const fileName = `${video.metadata?.legenda}.${video.format}`;
       const file = new File([blob], fileName, { type: `video/${video.format}` });
       if (navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
         await navigator.share({
           title: video.context?.custom?.title || video.display_name,
-          text: video.context?.custom?.caption || '',
+          text: video.context?.alt || '',
           files: [file]
         });
       }
