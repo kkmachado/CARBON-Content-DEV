@@ -790,7 +790,7 @@ const VideoApp = () => {
       if (navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
         await navigator.share({
           title: video.display_name,
-          text: video.metadata?.legenda || '',
+          text: video.context?.alt || '',
           files: [file]
         });
       }
