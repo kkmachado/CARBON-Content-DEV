@@ -785,12 +785,12 @@ const VideoApp = () => {
       const response = await fetch(video.secure_url);
       if (!response.ok) throw new Error('Erro ao baixar vídeo');
       const blob = await response.blob();
-      const fileName = `${video.metadata?.legenda}.${video.format}`;
+      const fileName = `${video.display_name}.${video.format}`;
       const file = new File([blob], fileName, { type: `video/${video.format}` });
       if (navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
         await navigator.share({
-          title: video.context?.custom?.title || video.display_name,
-          text: video.context?.alt || '',
+          title: video.display_name,
+          text: video.metadata?.legenda || '',
           files: [file]
         });
       }
