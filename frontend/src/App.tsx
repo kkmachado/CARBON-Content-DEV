@@ -1,11 +1,11 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { 
-  Search, 
-  Download, 
-  Play, 
-  Clock, 
-  Film, 
-  X, 
+import {
+  Search,
+  Download,
+  Play,
+  Clock,
+  Film,
+  X,
   Calendar,
   AlertCircle,
   Loader2,
@@ -32,7 +32,12 @@ interface User {
   email: string;
   user_metadata?: {
     name?: string;
+    // O 'role' em user_metadata não será mais usado diretamente para o tipo_perfil
+    // mas pode permanecer se você o usar para outras coisas.
+    role?: string;
   };
+  // O tipo_perfil agora virá da tabela 'perfis'
+  tipo_perfil?: string;
 }
 
 interface CloudinaryVideo {
@@ -94,6 +99,7 @@ class SupabaseClient {
 
   async signIn(email: string, password: string): Promise<ApiResponse<{user: User, access_token: string}>> {
     try {
+      console.log('[DEBUG LOGIN] Tentando signIn com email:', email);
       const response = await fetch(`${this.url}/auth/v1/token?grant_type=password`, {
         method: 'POST',
         headers: this.getHeaders(false),
@@ -101,45 +107,103 @@ class SupabaseClient {
       });
 
       const data = await response.json();
-      console.log('[DEBUG LOGIN] Resposta bruta da API Supabase:', data); // DEBUG LOG
-      
+      console.log('[DEBUG LOGIN] Resposta bruta da API Supabase (status:', response.status, '):', data);
+
       if (data.error) {
-        console.error('[DEBUG LOGIN] Erro na resposta da API Supabase:', data.error); // DEBUG LOG
-        throw new Error(data.error.message);
+        console.error('[DEBUG LOGIN] Erro detalhado na resposta JSON do Supabase:', data.error);
+        throw new Error(data.error.message || 'Erro de autenticação retornado pela API');
+      }
+
+      if (!response.ok) {
+        console.error('[DEBUG LOGIN] Erro HTTP na resposta da API Supabase:', data.error || 'Erro desconhecido');
+        throw new Error(data.error?.message || 'Erro de autenticação');
+      }
+
+      if (!data.access_token || !data.user) {
+        console.error('[DEBUG LOGIN] Token de acesso ou objeto de usuário ausente na resposta:', { token: data.access_token, user: data.user });
+        throw new Error('Dados de autenticação incompletos ou inválidos');
       }
 
       this.token = data.access_token;
-      
-      if (this.token && data.user) {
-        localStorage.setItem('supabase_token', this.token);
-        localStorage.setItem('supabase_user', JSON.stringify(data.user));
-        console.log('[DEBUG LOGIN] Login bem-sucedido. Token e usuário salvos.'); // DEBUG LOG
-      } else {
-        console.error('[DEBUG LOGIN] Token ou objeto de usuário ausente na resposta.', { token: this.token, user: data.user }); // DEBUG LOG
-        throw new Error('Dados de autenticação inválidos');
-      }
+      localStorage.setItem('supabase_token', this.token!);
 
-      return { data, error: null };
+      // ✅ NOVO: Buscar o perfil do usuário da tabela 'perfis'
+      const profile = await this.fetchUserProfile(data.user.id);
+      const userWithProfile: User = {
+        ...data.user,
+        tipo_perfil: profile?.tipo_perfil || 'normal' // Define 'normal' como padrão se não encontrar
+      };
+
+      localStorage.setItem('supabase_user', JSON.stringify(userWithProfile));
+      console.log('[DEBUG LOGIN] Login bem-sucedido. Token e usuário com perfil salvos.');
+
+      return { data: { user: userWithProfile, access_token: this.token! }, error: null };
+
     } catch (error: any) {
-      console.error('[DEBUG LOGIN] Erro geral no signIn:', error); // DEBUG LOG
+      console.error('[DEBUG LOGIN] Erro geral no signIn:', error);
       return { data: null as any, error };
     }
   }
 
   async signOut(): Promise<{error: any}> {
     try {
-      await fetch(`${this.url}/auth/v1/logout`, {
+      console.log('[DEBUG LOGOUT] Tentando signOut...');
+      const response = await fetch(`${this.url}/auth/v1/logout`, {
         method: 'POST',
-        headers: this.getHeaders()
+        headers: this.getHeaders(true)
       });
+
+      if (!response.ok) {
+        const errorData = await response.text();
+        console.error('[DEBUG LOGOUT] Erro ao fazer logout:', errorData);
+        throw new Error('Falha ao fazer logout');
+      }
 
       this.token = null;
       localStorage.removeItem('supabase_token');
       localStorage.removeItem('supabase_user');
+      console.log('[DEBUG LOGOUT] Logout bem-sucedido.');
 
       return { error: null };
     } catch (error: any) {
+      console.error('[DEBUG LOGOUT] Erro geral no signOut:', error);
       return { error };
+    }
+  }
+
+  // ✅ RE-ADICIONADO: Função para buscar o perfil do usuário da tabela 'perfis'
+  async fetchUserProfile(userId: string): Promise<{ tipo_perfil: string } | null> {
+    try {
+      console.log('[DEBUG PROFILE] Buscando perfil para userId:', userId);
+      const response = await fetch(`${this.url}/rest/v1/perfis?id=eq.${userId}&select=tipo_perfil`, {
+        method: 'GET',
+        headers: this.getHeaders(true) // Inclui o token de autenticação
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        console.error('❌ Erro ao buscar perfil (status:', response.status, '):', errorData);
+        // Se o erro for 404 (não encontrado) ou 406 (Not Acceptable, pode ser RLS),
+        // pode significar que o perfil ainda não existe ou o acesso foi negado.
+        // Nesse caso, retornamos null para que o tipo_perfil seja 'normal' por padrão.
+        if (response.status === 404 || response.status === 406) {
+          console.warn('[DEBUG PROFILE] Perfil não encontrado ou acesso negado (RLS). Retornando null.');
+          return null;
+        }
+        throw new Error(errorData.message || 'Erro ao buscar perfil');
+      }
+
+      const data = await response.json();
+      console.log('[DEBUG PROFILE] Resposta do perfil:', data);
+
+      if (data && data.length > 0) {
+        return data[0];
+      }
+      console.log('[DEBUG PROFILE] Perfil encontrado, mas vazio ou sem dados.');
+      return null;
+    } catch (error) {
+      console.error('❌ Erro em fetchUserProfile:', error);
+      return null;
     }
   }
 
@@ -149,7 +213,12 @@ class SupabaseClient {
       if (!user || user === 'undefined' || user === 'null') {
         return null;
       }
-      return JSON.parse(user);
+      const parsedUser: User = JSON.parse(user);
+      // ✅ Garante que tipo_perfil exista, mesmo que seja 'normal' por padrão
+      if (!parsedUser.tipo_perfil) {
+        parsedUser.tipo_perfil = 'normal';
+      }
+      return parsedUser;
     } catch (error) {
       console.error('Erro ao recuperar usuário do localStorage:', error);
       localStorage.removeItem('supabase_user');
@@ -175,7 +244,7 @@ class CloudinaryClient {
   async searchVideos(searchTerm: string): Promise<CloudinaryVideo[]> {
     try {
       console.log(`🔍 Buscando vídeos via backend com termo: "${searchTerm}"`);
-      
+
       const response = await fetch(`${this.backendUrl}/api/videos/search`, {
         method: 'POST',
         headers: {
@@ -192,16 +261,16 @@ class CloudinaryClient {
 
       const data = await response.json();
       console.log('✅ Resultados da busca (com tags):', data);
-      
+
       return this.formatCloudinaryVideos(data.resources || []);
 
     } catch (error: any) {
       console.error('❌ Erro na busca via backend:', error);
-      
+
       if (error.message.includes('Failed to fetch')) {
         alert('⚠️ Backend não está rodando!\n\nPara resolver:\n1. Abra um novo terminal\n2. cd backend\n3. npm install\n4. npm run dev');
       }
-      
+
       throw error;
     }
   }
@@ -209,7 +278,7 @@ class CloudinaryClient {
   async getAllVideos(): Promise<CloudinaryVideo[]> {
     try {
       console.log('📚 Carregando todos os vídeos da biblioteca...');
-      
+
       const response = await fetch(`${this.backendUrl}/api/videos`, {
         method: 'GET',
         headers: {
@@ -225,16 +294,16 @@ class CloudinaryClient {
 
       const data = await response.json();
       console.log('✅ Biblioteca carregada (com tags):', data);
-      
+
       return this.formatCloudinaryVideos(data.resources || []);
 
     } catch (error: any) {
       console.error('❌ Erro ao carregar biblioteca:', error);
-      
+
       if (error.message.includes('Failed to fetch')) {
         alert('⚠️ Backend não está rodando!\n\nPara resolver:\n1. Abra um novo terminal\n2. cd backend\n3. npm install\n4. npm run dev');
       }
-      
+
       throw error;
     }
   }
@@ -253,10 +322,10 @@ class CloudinaryClient {
 
   private formatCloudinaryVideos(resources: any[]): CloudinaryVideo[] {
     console.log('📋 Formatando vídeos encontrados:', resources.length);
-    
+
     return resources.map(resource => {
       console.log('📄 Recurso individual:', resource);
-      
+
       return {
         public_id: resource.public_id,
         display_name: resource.display_name || resource.public_id,
@@ -297,7 +366,7 @@ const VideoThumbnail: React.FC<VideoThumbnailProps> = ({ video, onClick }) => {
 
   const handleImageError = (e: React.SyntheticEvent<HTMLImageElement>) => {
     const target = e.target as HTMLImageElement;
-    
+
     if (!imageError) {
       console.log(`⚠️ Erro na thumbnail principal para ${video.public_id}, tentando fallback...`);
       setImageError(true);
@@ -318,7 +387,7 @@ const VideoThumbnail: React.FC<VideoThumbnailProps> = ({ video, onClick }) => {
           </div>
         </div>
       )}
-      
+
       <img
         src={lowQualityUrl}
         alt=""
@@ -327,7 +396,7 @@ const VideoThumbnail: React.FC<VideoThumbnailProps> = ({ video, onClick }) => {
         }`}
         loading="lazy"
       />
-      
+
       <img
         src={thumbnailUrl}
         alt={video.context?.custom?.title || video.display_name}
@@ -338,7 +407,7 @@ const VideoThumbnail: React.FC<VideoThumbnailProps> = ({ video, onClick }) => {
         onLoad={handleImageLoad}
         onError={handleImageError}
       />
-      
+
       {!imageLoading && imageError && (
         <div className="absolute inset-0 w-full h-48 bg-gradient-to-br from-blue-100 to-blue-200 flex items-center justify-center">
           <div className="text-center">
@@ -347,20 +416,20 @@ const VideoThumbnail: React.FC<VideoThumbnailProps> = ({ video, onClick }) => {
           </div>
         </div>
       )}
-      
+
       <div className="absolute inset-0 bg-gradient-to-t from-black/50 via-transparent to-transparent opacity-0 group-hover:opacity-100 flex items-center justify-center transition-all duration-300 ease-in-out">
       </div>
-      
+
       <div className="absolute inset-0 flex items-center justify-center">
         <div className="bg-white bg-opacity-25 backdrop-blur-sm rounded-xl py-3 px-6 transform group-hover:scale-110 transition-all duration-300 shadow-lg">
           <Play className="text-white w-8 h-8 fill-current transform translate-x-0.5" />
         </div>
       </div>
-      
+
       <div className="absolute top-3 right-3 bg-black/80 backdrop-blur-sm text-white text-xs px-2.5 py-1 rounded-full font-medium">
         {video.duration ? `${Math.floor(video.duration / 60).toString().padStart(2, '0')}:${Math.floor(video.duration % 60).toString().padStart(2, '0')}` : '--:--'}
       </div>
-      
+
       <div className="absolute inset-0 border-2 border-transparent group-hover:border-blue-500/50 rounded-lg transition-colors duration-300 pointer-events-none"></div>
     </div>
   );
@@ -371,7 +440,7 @@ const VideoApp = () => {
   const [videos, setVideos] = useState<CloudinaryVideo[]>([]);
   const [loading, setLoading] = useState(false);
   const [selectedVideo, setSelectedVideo] = useState<CloudinaryVideo | null>(null);
-  
+
   // Estados para os valores dos inputs (o que o usuário digita)
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedMontadora, setSelectedMontadora] = useState('');
@@ -392,7 +461,7 @@ const VideoApp = () => {
   const [password, setPassword] = useState('');
   const [authError, setAuthError] = useState('');
   const [isLoggingIn, setIsLoggingIn] = useState(false);
-  
+
   // Estado para controlar downloads em andamento
   const [downloadingVideos, setDownloadingVideos] = useState<Set<string>>(new Set());
 
@@ -401,7 +470,7 @@ const VideoApp = () => {
     try {
       const storedUser = supabase.current.getUser();
       if (storedUser) {
-        console.log('✅ Usuário encontrado no localStorage:', storedUser.email);
+        console.log('✅ Usuário encontrado no localStorage:', storedUser.email, 'Perfil:', storedUser.tipo_perfil);
         setUser(storedUser);
       } else {
         console.log('ℹ️ Nenhum usuário logado encontrado');
@@ -421,7 +490,7 @@ const VideoApp = () => {
         console.warn('⚠️ Backend não está rodando!');
       }
     };
-    
+
     checkBackend();
   }, []);
 
@@ -430,27 +499,27 @@ const VideoApp = () => {
     if (user) {
       // Quando o componente carrega ou o usuário loga, carregamos todos os vídeos
       // A filtragem inicial será feita com os estados de filtro aplicados (que inicialmente são vazios)
-      loadAllVideos(); 
+      loadAllVideos();
     }
   }, [user]); // Depende apenas do usuário logado
 
   // Funções para extrair montadoras e tags
   const extractMontadoras = (videos: CloudinaryVideo[]): string[] => {
     const montadoras = new Set<string>();
-    
+
     videos.forEach(video => {
       const montadora = video.metadata?.montadora;
       if (montadora && montadora.trim()) {
         montadoras.add(montadora.trim());
       }
     });
-    
+
     return Array.from(montadoras).sort();
   };
 
   const extractTags = (videos: CloudinaryVideo[]): string[] => {
     const tags = new Set<string>();
-    
+
     videos.forEach(video => {
       if (Array.isArray(video.tags)) {
         video.tags.forEach(tag => {
@@ -460,14 +529,14 @@ const VideoApp = () => {
         });
       }
     });
-    
+
     return Array.from(tags).sort();
   };
 
   // Funções de filtro
   const filterVideosByMontadora = (videos: CloudinaryVideo[], montadora: string): CloudinaryVideo[] => {
     if (!montadora) return videos;
-    
+
     return videos.filter(video => {
       const videoMontadora = video.metadata?.montadora;
       return videoMontadora && videoMontadora.toLowerCase().includes(montadora.toLowerCase());
@@ -476,9 +545,9 @@ const VideoApp = () => {
 
   const filterVideosByTag = (videos: CloudinaryVideo[], tag: string): CloudinaryVideo[] => {
     if (!tag) return videos;
-    
+
     return videos.filter(video => {
-      return Array.isArray(video.tags) && video.tags.some(videoTag => 
+      return Array.isArray(video.tags) && video.tags.some(videoTag =>
         videoTag.toLowerCase().includes(tag.toLowerCase())
       );
     });
@@ -486,26 +555,26 @@ const VideoApp = () => {
 
   const filterVideosBySearchTerm = (videos: CloudinaryVideo[], searchTerm: string): CloudinaryVideo[] => {
     if (!searchTerm) return videos;
-    
+
     const term = searchTerm.toLowerCase();
-    
+
     return videos.filter(video => {
       const title = video.context?.custom?.title || video.display_name || '';
       if (title.toLowerCase().includes(term)) return true;
-      
+
       const legenda = video.metadata?.legenda || video.context?.custom?.caption || '';
       if (legenda.toLowerCase().includes(term)) return true;
-      
+
       if (Array.isArray(video.tags)) {
-        const hasMatchingTag = video.tags.some(tag => 
+        const hasMatchingTag = video.tags.some(tag =>
           tag.toLowerCase().includes(term)
         );
         if (hasMatchingTag) return true;
       }
-      
+
       const montadora = video.metadata?.montadora || '';
       if (montadora.toLowerCase().includes(term)) return true;
-      
+
       return false;
     });
   };
@@ -513,12 +582,12 @@ const VideoApp = () => {
   // Aplicar todos os filtros combinados
   const getFilteredVideos = (): CloudinaryVideo[] => {
     let filtered = videos;
-    
+
     // Agora usamos os estados 'applied' para a filtragem real
     filtered = filterVideosBySearchTerm(filtered, appliedSearchTerm);
     filtered = filterVideosByMontadora(filtered, appliedSelectedMontadora);
     filtered = filterVideosByTag(filtered, appliedSelectedTag);
-    
+
     return filtered;
   };
 
@@ -528,10 +597,10 @@ const VideoApp = () => {
   useEffect(() => {
     const montadoras = extractMontadoras(videos);
     const tags = extractTags(videos);
-    
+
     setAvailableMontadoras(montadoras);
     setAvailableTags(tags);
-    
+
     console.log('🏭 Montadoras encontradas:', montadoras);
     console.log('🏷️ Tags encontradas:', tags);
   }, [videos]);
@@ -548,13 +617,13 @@ const VideoApp = () => {
       setVideos(cloudinaryVideos);
     } catch (error: any) {
       console.error('❌ Erro ao carregar biblioteca:', error);
-      
+
       if (error.message.includes('Backend não está rodando')) {
         alert('⚠️ Backend não está rodando!\n\nPara resolver:\n1. Abra um novo terminal\n2. cd backend\n3. npm install\n4. npm run dev');
       } else {
         alert(`Erro ao carregar biblioteca: ${error.message}`);
       }
-      
+
       setVideos([]);
     } finally {
       setLoading(false);
@@ -568,16 +637,16 @@ const VideoApp = () => {
     try {
       setLoading(true);
       console.log(`🔍 Buscando vídeos com termo: "${appliedSearchTerm}"`);
-      
+
       if (!appliedSearchTerm.trim() && !appliedSelectedMontadora && !appliedSelectedTag) {
         // Se não houver nenhum termo de busca ou filtro aplicado, carrega todos os vídeos
         await loadAllVideos();
         return;
       }
-      
+
       // Se houver termo de busca, usa a API de busca do Cloudinary
       const cloudinaryVideos = await cloudinary.current.searchVideos(appliedSearchTerm);
-      
+
       // Aplica os filtros de montadora e tag localmente
       let filteredResults = filterVideosByMontadora(cloudinaryVideos, appliedSelectedMontadora);
       filteredResults = filterVideosByTag(filteredResults, appliedSelectedTag);
@@ -586,13 +655,13 @@ const VideoApp = () => {
       setVideos(filteredResults);
     } catch (error: any) {
       console.error('❌ Erro ao buscar vídeos:', error);
-      
+
       if (error.message.includes('Failed to fetch')) {
         alert('⚠️ Backend não está rodando!\n\nPara resolver:\n1. Abra um novo terminal\n2. cd backend\n3. npm install\n4. npm run dev');
       } else {
         alert(`Erro na busca: ${error.message}`);
       }
-      
+
       setVideos([]);
     } finally {
       setLoading(false);
@@ -638,11 +707,11 @@ const VideoApp = () => {
     e.preventDefault();
     setAuthError('');
     setIsLoggingIn(true);
-    
+
     try {
       console.log('🔑 Tentando fazer login:', email);
       const result = await supabase.current.signIn(email, password);
-      
+
       console.log('📥 Resultado do login:', result);
 
       if (result.error) {
@@ -656,27 +725,27 @@ const VideoApp = () => {
       setPassword('');
     } catch (error: any) {
       console.error('❌ Erro no login:', error);
-      
+
       let errorMessage = 'Erro de autenticação';
-      
+
       if (error && error.message) {
         const msg = error.message.toLowerCase();
         console.log('🔍 Analisando mensagem de erro:', msg);
-        
-        if (msg.includes('invalid login credentials') || 
+
+        if (msg.includes('invalid login credentials') ||
             msg.includes('invalid_credentials') ||
             msg.includes('wrong password') ||
             msg.includes('incorrect password') ||
             msg.includes('email not confirmed')) {
           errorMessage = 'Email ou senha incorretos. Verifique suas credenciais e tente novamente.';
-        } else if (msg.includes('user not found') || 
+        } else if (msg.includes('user not found') ||
                    msg.includes('email not found') ||
                    msg.includes('no user found')) {
           errorMessage = 'Usuário não encontrado. Entre em contato com o administrador.';
-        } else if (msg.includes('too many requests') || 
+        } else if (msg.includes('too many requests') ||
                    msg.includes('rate limit')) {
           errorMessage = 'Muitas tentativas. Aguarde alguns minutos e tente novamente.';
-        } else if (msg.includes('network') || 
+        } else if (msg.includes('network') ||
                    msg.includes('connection') ||
                    msg.includes('fetch')) {
           errorMessage = 'Erro de conexão. Verifique sua internet e tente novamente.';
@@ -686,7 +755,7 @@ const VideoApp = () => {
       } else {
         errorMessage = 'Erro desconhecido. Tente novamente.';
       }
-      
+
       console.log('📝 Mensagem de erro final:', errorMessage);
       setAuthError(errorMessage);
     } finally {
@@ -704,70 +773,70 @@ const VideoApp = () => {
   const handleDownload = async (video: CloudinaryVideo) => {
     try {
       setDownloadingVideos(prev => new Set(prev).add(video.public_id));
-      
+
       console.log('📥 Iniciando download forçado:', video.display_name);
-      
+
       const cleanTitle = video.context?.custom?.title || video.display_name || video.public_id;
       const fileName = `${cleanTitle.replace(/[^a-zA-Z0-9\s\-_]/g, '')}.${video.format}`;
-      
+
       try {
         console.log('🔄 Tentando download via fetch...');
-        
+
         const response = await fetch(video.secure_url, {
           method: 'GET',
           headers: {
             'Content-Type': 'application/octet-stream',
           }
         });
-        
+
         if (response.ok) {
           const blob = await response.blob();
-          
+
           const blobUrl = window.URL.createObjectURL(blob);
-          
+
           const downloadLink = document.createElement('a');
           downloadLink.href = blobUrl;
           downloadLink.download = fileName;
           downloadLink.style.display = 'none';
-          
+
           document.body.appendChild(downloadLink);
           downloadLink.click();
           document.body.removeChild(downloadLink);
-          
+
           setTimeout(() => {
             window.URL.revokeObjectURL(blobUrl);
           }, 1000);
-          
+
           console.log('✅ Download via fetch bem-sucedido');
           return;
         } else {
           throw new Error(`HTTP ${response.status}: ${response.statusText}`);
         }
-        
+
       } catch (fetchError) {
         console.warn('⚠️ Fetch falhou, tentando método alternativo:', fetchError);
       }
-      
+
       console.log('🔄 Usando método de fallback...');
-      
+
       const fallbackLink = document.createElement('a');
       fallbackLink.href = video.secure_url;
       fallbackLink.download = fileName;
       fallbackLink.setAttribute('target', '_self');
       fallbackLink.style.display = 'none';
-      
+
       document.body.appendChild(fallbackLink);
       fallbackLink.click();
       document.body.removeChild(fallbackLink);
-      
+
       console.log('✅ Download via link direto iniciado');
-      
+
     } catch (error) {
       console.error('❌ Erro no download:', error);
-      
+
       // Abrir em nova aba como último recurso
       window.open(video.secure_url, '_blank');
-      
+
     } finally {
       setTimeout(() => {
         setDownloadingVideos(prev => {
@@ -799,6 +868,9 @@ const VideoApp = () => {
     }
   };
 
+  // ✅ NOVO: Verificar se o usuário é admin (agora lê de tipo_perfil)
+  const isAdmin = user?.tipo_perfil === 'admin';
+
   // Se não estiver logado, mostrar apenas tela de login
   if (!user) {
     return (
@@ -819,7 +891,7 @@ const VideoApp = () => {
               className="w-2/3 mx-auto mb-4"
             />
           </div>
-          
+
           <form onSubmit={handleLogin} className="space-y-6">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -835,7 +907,7 @@ const VideoApp = () => {
                 disabled={isLoggingIn}
               />
             </div>
-            
+
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
                 Senha
@@ -851,7 +923,7 @@ const VideoApp = () => {
                 minLength={6}
               />
             </div>
-            
+
             {authError && (
               <div className="bg-red-50 border border-red-200 rounded-lg p-4">
                 <div className="flex items-start">
@@ -883,7 +955,7 @@ const VideoApp = () => {
                 </div>
               </div>
             )}
-            
+
             <button
               type="submit"
               disabled={isLoggingIn}
@@ -917,13 +989,13 @@ const VideoApp = () => {
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
-      <header className="bg-black text-white py-4 px-6 shadow-lg">
-        <div className="max-w-6xl md:px-6 mx-auto flex justify-between items-center">
+      <header className="bg-black text-white shadow-lg">
+        <div className="max-w-6xl mx-auto py-4 px-6 mx-auto flex justify-between items-center">
           <div>
             <h1 className="text-2xl font-bold">CARBON Content</h1>
           </div>
           <div className="flex items-center gap-4">
-            <button 
+            <button
               onClick={handleLogout}
               className="bg-gray-700 px-4 py-2 rounded hover:bg-gray-800 transition-colors flex items-center gap-2"
             >
@@ -935,13 +1007,21 @@ const VideoApp = () => {
       </header>
 
       <div className="max-w-6xl mx-auto md:p-6">
+        {/* ✅ NOVO: Mensagem de admin (agora de tipo_perfil) */}
+        {isAdmin && (
+          <div className="bg-green-100 border border-green-200 text-green-800 p-4 rounded-lg m-6 md:m-0 md:mb-6 flex items-center">
+            <AlertCircle className="w-5 h-5 mr-3" />
+            Você está logado como Administrador.
+          </div>
+        )}
+
         {/* Busca de Vídeos */}
         <div className="bg-white md:rounded-lg md:shadow-md p-6 md:mb-6">
           <h2 className="text-xl font-bold mb-4 flex items-center">
             <Search className="w-5 h-5 mr-2" />
             Buscar vídeos
           </h2>
-         
+
          <div className="space-y-4">
            {/* Filtros */}
            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -1061,7 +1141,7 @@ const VideoApp = () => {
                  <Search className="w-4 h-4" />
                  Buscar
                </button>
-               
+
                {/* Botão "Limpar Filtros" aparece apenas com filtros aplicados */}
                {(appliedSearchTerm || appliedSelectedMontadora || appliedSelectedTag) && (
                  <button
@@ -1070,7 +1150,7 @@ const VideoApp = () => {
                    title="Limpar todos os filtros"
                  >
                    <X className="w-4 h-4" />
-                   Limpar
+                   Limpar Filtros
                  </button>
                )}
              </div>
@@ -1114,7 +1194,7 @@ const VideoApp = () => {
               )}
             </div>
           </div>
-          
+
           {loading ? (
             <div className="text-center py-12">
               <Loader2 className="animate-spin h-16 w-16 text-blue-600 mx-auto" />
@@ -1170,17 +1250,17 @@ const VideoApp = () => {
            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
              {filteredVideos.map((video) => (
                <div key={video.public_id} className="border rounded-lg overflow-hidden hover:shadow-lg transition-shadow duration-300 flex flex-col h-full">
-                 <VideoThumbnail 
-                   video={video} 
-                   onClick={() => setSelectedVideo(video)} 
+                 <VideoThumbnail
+                   video={video}
+                   onClick={() => setSelectedVideo(video)}
                  />
-                 
+
                  {/* Informações do vídeo */}
                  <div className="p-4 flex flex-col flex-1">
                    {/* Montadora */}
                    {video.metadata?.montadora && (
                      <div className="flex flex-wrap gap-1 mb-3">
-                       <span 
+                       <span
                          className="text-gray-400 text-sm flex items-center gap-1 w-fit cursor-pointer hover:text-gray-600 transition-all"
                          onClick={(e) => {
                            e.stopPropagation();
@@ -1199,19 +1279,19 @@ const VideoApp = () => {
                    <h3 className="font-bold text-lg mb-2 truncate">
                      {video.context?.custom?.title || video.display_name}
                    </h3>
-                   
+
                    {/* Legenda apenas do alt ou fallback para legenda */}
                    {(video.context?.alt || video.metadata?.legenda) && (
                      <p className="text-gray-600 text-sm mb-3 line-clamp-2">
                        {video.context?.alt || video.metadata?.legenda}
                      </p>
                    )}
-                   
+
                    {/* Tags */}
                    {video.tags && video.tags.length > 0 && (
                      <div className="flex flex-wrap gap-1 mb-3">
                        {video.tags.slice(0, 3).map((tag: string, index: number) => (
-                         <span 
+                         <span
                            key={index}
                            className="bg-yellow-100 text-yellow-700 text-xs px-2 py-1 rounded-full flex items-center gap-1 cursor-pointer hover:bg-yellow-200 transition-colors"
                            onClick={(e) => {
@@ -1230,7 +1310,7 @@ const VideoApp = () => {
                        )}
                      </div>
                    )}
-                   
+
                    {/* Informações técnicas */}
                    <div className="text-xs text-gray-500 mb-3 flex items-center gap-3 grow mt-auto">
                     {video.format && (
@@ -1246,7 +1326,7 @@ const VideoApp = () => {
                        </span>
                      )}
                    </div>
-                   
+
                    {/* ✅ BOTÕES DE AÇÃO SIMPLIFICADOS */}
                    <div className="flex gap-2">
                      {/* Botão de download */}
@@ -1267,7 +1347,7 @@ const VideoApp = () => {
                          </>
                        )}
                      </button>
-                     
+
                      {/* Botão WhatsApp inteligente */}
                      <button
                        onClick={(e) => {
@@ -1306,7 +1386,7 @@ const VideoApp = () => {
                  <X className="w-6 h-6" />
                </button>
              </div>
-             
+
              {/* Player de Vídeo HTML5 */}
              <div className="mb-4">
                <video
@@ -1318,13 +1398,13 @@ const VideoApp = () => {
                  Seu navegador não suporta o elemento de vídeo.
                </video>
              </div>
-             
+
              {/* Informações do vídeo */}
              <div className="space-y-3">
                {/* Montadora no modal */}
                {selectedVideo.metadata?.montadora && (
                  <div className="flex flex-wrap gap-1 mb-3">
-                   <span 
+                   <span
                      className="text-gray-400 text-sm flex items-center gap-1 w-fit cursor-pointer hover:text-gray-600 transition-all"
                      onClick={() => {
                        if (selectedVideo.metadata?.montadora) {
@@ -1348,13 +1428,13 @@ const VideoApp = () => {
                    </p>
                  </div>
                )}
-               
+
                {/* Tags no modal */}
                {selectedVideo.tags && selectedVideo.tags.length > 0 && (
                  <div>
                    <div className="flex flex-wrap gap-2">
                      {selectedVideo.tags.map((tag: string, index: number) => (
-                       <span 
+                       <span
                          key={index}
                          className="bg-yellow-100 text-yellow-700 px-3 py-1 rounded-full text-sm flex items-center gap-1 cursor-pointer hover:bg-yellow-200 transition-colors"
                          onClick={() => {
@@ -1371,14 +1451,14 @@ const VideoApp = () => {
                    </div>
                  </div>
                )}
-               
+
                {/* ✅ BOTÕES DE AÇÃO NO MODAL SIMPLIFICADOS */}
                <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3 pt-4 border-t">
                  <div className="text-sm text-gray-500 flex items-center gap-1">
                    <Calendar className="w-4 h-4" />
                    Adicionado em {new Date(selectedVideo.created_at).toLocaleDateString('pt-BR')}
                  </div>
-                 
+
                  <div className="flex gap-2">
                    {/* Botão de download */}
                    <button
@@ -1398,7 +1478,7 @@ const VideoApp = () => {
                        </>
                      )}
                    </button>
-                   
+
                    {/* Botão WhatsApp inteligente */}
                    <button
                      onClick={() => {
@@ -1416,6 +1496,15 @@ const VideoApp = () => {
            </div>
          </div>
        </div>
+     )}
+
+     {/* ✅ NOVO: Rodapé com email do usuário */}
+     {user && (
+       <footer className="text-gray-500 text-xs px-6 pb-6 mt-auto text-center">
+         <div className="max-w-6xl mx-auto">
+           <p>Logado como: <span className="font-semibold text-gray-500">{user.email}</span></p>
+         </div>
+       </footer>
      )}
    </div>
  );
