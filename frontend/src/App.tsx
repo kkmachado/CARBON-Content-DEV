@@ -15,11 +15,11 @@ import {
   Hash,
   Car,
   Tag,
-  MessageCircle, // ÍCONO PARA WHATSAPP
-  KeyRound,      // ÍCONO PARA SENHA
-  Mail,          // ÍCONO PARA EMAIL
-  ArrowLeft,     // ÍCONO PARA VOLTAR
-  CheckCircle,   // ÍCONO DE SUCESSO
+  MessageCircle, // ÍCONE PARA WHATSAPP
+  KeyRound,      // ÍCONE PARA SENHA
+  Mail,          // ÍCONE PARA EMAIL
+  ArrowLeft,     // ÍCONE PARA VOLTAR
+  CheckCircle,   // ÍCONE DE SUCESSO
 } from 'lucide-react';
 
 // --- CONFIGURAÇÕES GLOBAIS ---
@@ -917,24 +917,100 @@ const VideoApp = () => {
           <div className="bg-white rounded-lg w-full max-w-4xl max-h-[90vh] overflow-y-auto">
             <div className="p-4 md:p-6">
               <div className="flex justify-between items-center mb-4">
-                <h2 className="text-lg md:text-xl font-bold pr-4 truncate">{selectedVideo.context?.custom?.title || selectedVideo.display_name}</h2>
-                <button onClick={() => setSelectedVideo(null)} className="text-gray-500 hover:text-gray-700 p-2 -m-2"><X className="w-6 h-6" /></button>
+                <h2 className="text-lg md:text-xl font-bold pr-4 truncate">
+                  {selectedVideo.context?.custom?.title || selectedVideo.display_name}
+                </h2>
+                <button
+                  onClick={() => setSelectedVideo(null)}
+                  className="text-gray-500 hover:text-gray-700 p-2 -m-2"
+                >
+                  <X className="w-6 h-6" />
+                </button>
               </div>
               <div className="mb-4">
-                <video className="w-full max-h-60 md:max-h-96 rounded" controls autoPlay>
+                <video
+                  className="w-full max-h-60 md:max-h-96 rounded"
+                  controls
+                  autoPlay
+                >
                   <source src={selectedVideo.secure_url} type={`video/${selectedVideo.format}`} />
                   Seu navegador não suporta o elemento de vídeo.
                 </video>
               </div>
               <div className="space-y-3">
-                {selectedVideo.metadata?.montadora && <div className="flex flex-wrap gap-1 mb-3"><span className="text-gray-400 text-sm flex items-center gap-1 w-fit cursor-pointer hover:text-gray-600" onClick={() => { if (selectedVideo.metadata?.montadora) { setSelectedMontadora(selectedVideo.metadata.montadora); setAppliedSelectedMontadora(selectedVideo.metadata.montadora); setSelectedVideo(null); } }}>{selectedVideo.metadata.montadora.toUpperCase()}</span></div>}
-                {(selectedVideo.context?.alt || selectedVideo.metadata?.legenda) && <div><p className="text-gray-600 text-sm md:text-base">{selectedVideo.context?.alt || selectedVideo.metadata?.legenda}</p></div>}
-                {selectedVideo.tags && selectedVideo.tags.length > 0 && <div><div className="flex flex-wrap gap-2">{selectedVideo.tags.map((tag: string, index: number) => <span key={index} className="bg-yellow-100 text-yellow-700 px-3 py-1 rounded-full text-sm flex items-center gap-1 cursor-pointer hover:bg-yellow-200" onClick={() => { setSelectedTag(tag); setAppliedSelectedTag(tag); setSelectedVideo(null); }}><Hash className="w-3 h-3" />{tag}</span>)}</div></div>}
+                {selectedVideo.metadata?.montadora && (
+                  <div className="flex flex-wrap gap-1 mb-3">
+                    <span
+                      className="text-gray-400 text-sm flex items-center gap-1 w-fit cursor-pointer hover:text-gray-600"
+                      onClick={() => {
+                        if (selectedVideo.metadata?.montadora) {
+                          setSelectedMontadora(selectedVideo.metadata.montadora);
+                          setAppliedSelectedMontadora(selectedVideo.metadata.montadora);
+                          setSelectedVideo(null);
+                        }
+                      }}
+                    >
+                      {selectedVideo.metadata.montadora.toUpperCase()}
+                    </span>
+                  </div>
+                )}
+                {(selectedVideo.context?.alt || selectedVideo.metadata?.legenda) && (
+                  <div>
+                    <p className="text-gray-600 text-sm md:text-base">
+                      {selectedVideo.context?.alt || selectedVideo.metadata?.legenda}
+                    </p>
+                  </div>
+                )}
+                {selectedVideo.tags && selectedVideo.tags.length > 0 && (
+                  <div>
+                    <div className="flex flex-wrap gap-2">
+                      {selectedVideo.tags.map((tag: string, index: number) => (
+                        <span
+                          key={index}
+                          className="bg-yellow-100 text-yellow-700 px-3 py-1 rounded-full text-sm flex items-center gap-1 cursor-pointer hover:bg-yellow-200"
+                          onClick={() => {
+                            setSelectedTag(tag);
+                            setAppliedSelectedTag(tag);
+                            setSelectedVideo(null);
+                          }}
+                        >
+                          <Hash className="w-3 h-3" />
+                          {tag}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
                 <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3 pt-4 border-t">
-                  <div className="text-sm text-gray-500 flex items-center gap-1"><Calendar className="w-4 h-4" />Adicionado em {new Date(selectedVideo.created_at).toLocaleDateString('pt-BR')}</div>
+                  <div className="text-sm text-gray-500 flex items-center gap-1">
+                    <Calendar className="w-4 h-4" />
+                    Adicionado em {new Date(selectedVideo.created_at).toLocaleDateString('pt-BR')}
+                  </div>
                   <div className="flex gap-2">
-                    <button onClick={() => handleDownload(selectedVideo)} disabled={downloadingVideos.has(selectedVideo.public_id)} className="hidden md:flex bg-gray-300 text-black px-4 py-2 rounded hover:bg-gray-400 flex items-center justify-center gap-2 disabled:opacity-50 min-h-[44px]">{downloadingVideos.has(selectedVideo.public_id) ? <><Loader2 className="w-4 h-4 animate-spin" />Baixando...</> : <><Download className="w-4 h-4" />Baixar</>}</button>
-                    <button onClick={() => { shareVideoViaWebShare(selectedVideo); }} className="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700 flex items-center justify-center gap-2 min-h-[44px]"><MessageCircle className="w-4 h-4" />WhatsApp</button>
+                    <button
+                      onClick={() => handleDownload(selectedVideo)}
+                      disabled={downloadingVideos.has(selectedVideo.public_id)}
+                      className="hidden md:flex bg-gray-300 text-black px-4 py-2 rounded hover:bg-gray-400 flex items-center justify-center gap-2 disabled:opacity-50 min-h-[44px]"
+                    >
+                      {downloadingVideos.has(selectedVideo.public_id) ? (
+                        <>
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                          Baixando...
+                        </>
+                      ) : (
+                        <>
+                          <Download className="w-4 h-4" />
+                          Baixar
+                        </>
+                      )}
+                    </button>
+                    <button
+                      onClick={() => { shareVideoViaWebShare(selectedVideo); }}
+                      className="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700 flex items-center justify-center gap-2 min-h-[44px]"
+                    >
+                      <MessageCircle className="w-4 h-4" />
+                      WhatsApp
+                    </button>
                   </div>
                 </div>
               </div>
