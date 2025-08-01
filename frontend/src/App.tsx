@@ -15,11 +15,11 @@ import {
   Hash,
   Car,
   Tag,
-  MessageCircle, // ÍCONE PARA WHATSAPP
-  KeyRound,      // ÍCONE PARA SENHA
-  Mail,          // ÍCONE PARA EMAIL
-  ArrowLeft,     // ÍCONE PARA VOLTAR
-  CheckCircle,   // ÍCONE DE SUCESSO
+  MessageCircle, // ÍCONO PARA WHATSAPP
+  KeyRound,      // ÍCONO PARA SENHA
+  Mail,          // ÍCONO PARA EMAIL
+  ArrowLeft,     // ÍCONO PARA VOLTAR
+  CheckCircle,   // ÍCONO DE SUCESSO
 } from 'lucide-react';
 
 // --- CONFIGURAÇÕES GLOBAIS ---
@@ -70,7 +70,6 @@ interface ApiResponse<T> {
 }
 
 // --- CLASSE DE API PARA O SUPABASE ---
-// Gerencia todas as interações de autenticação com o Supabase.
 class SupabaseClient {
   private url: string;
   private key: string;
@@ -82,7 +81,6 @@ class SupabaseClient {
     this.token = localStorage.getItem('supabase_token');
   }
 
-  // Monta os cabeçalhos padrão para as requisições
   private getHeaders(includeAuth: boolean = true): Record<string, string> {
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
@@ -97,7 +95,6 @@ class SupabaseClient {
     return headers;
   }
 
-  // Autentica o usuário
   async signIn(email: string, password: string): Promise<ApiResponse<{ user: User, access_token: string }>> {
     try {
       const response = await fetch(`${this.url}/auth/v1/token?grant_type=password`, {
@@ -121,7 +118,6 @@ class SupabaseClient {
     }
   }
 
-  // Desconecta o usuário
   async signOut(): Promise<{ error: any }> {
     try {
       await fetch(`${this.url}/auth/v1/logout`, { method: 'POST', headers: this.getHeaders(true) });
@@ -134,7 +130,6 @@ class SupabaseClient {
     }
   }
 
-  // Envia email de recuperação de senha
   async sendPasswordResetEmail(email: string): Promise<{ error: any }> {
     try {
       const response = await fetch(`${this.url}/auth/v1/recover`, {
@@ -152,7 +147,6 @@ class SupabaseClient {
     }
   }
 
-  // Atualiza a senha do usuário usando um token de acesso
   async updateUserPassword(accessToken: string, password: string): Promise<{ error: any }> {
     try {
       const response = await fetch(`${this.url}/auth/v1/user`, {
@@ -174,7 +168,6 @@ class SupabaseClient {
     }
   }
 
-  // Busca o perfil do usuário na tabela 'perfis'
   async fetchUserProfile(userId: string): Promise<{ tipo_perfil: string } | null> {
     try {
       const response = await fetch(`${this.url}/rest/v1/perfis?id=eq.${userId}&select=tipo_perfil`, {
@@ -189,7 +182,6 @@ class SupabaseClient {
     }
   }
 
-  // Obtém o usuário do localStorage
   getUser(): User | null {
     try {
       const user = localStorage.getItem('supabase_user');
@@ -206,7 +198,6 @@ class SupabaseClient {
 }
 
 // --- CLASSE DE API PARA O CLOUDINARY ---
-// Gerencia a busca de vídeos no backend que se comunica com o Cloudinary.
 class CloudinaryClient {
   private backendUrl: string;
 
@@ -217,7 +208,6 @@ class CloudinaryClient {
         : 'https://api.carboncontent.carlosmachado.tech';
   }
 
-  // Busca vídeos por um termo
   async searchVideos(searchTerm: string): Promise<CloudinaryVideo[]> {
     try {
       const response = await fetch(`${this.backendUrl}/api/videos/search`, {
@@ -239,7 +229,6 @@ class CloudinaryClient {
     }
   }
 
-  // Busca todos os vídeos
   async getAllVideos(): Promise<CloudinaryVideo[]> {
     try {
       const response = await fetch(`${this.backendUrl}/api/videos`, {
@@ -260,7 +249,6 @@ class CloudinaryClient {
     }
   }
 
-  // Formata a resposta da API do Cloudinary para o nosso modelo
   private formatCloudinaryVideos(resources: any[]): CloudinaryVideo[] {
     return resources.map(resource => ({
       public_id: resource.public_id,
@@ -278,11 +266,8 @@ class CloudinaryClient {
 }
 
 // --- COMPONENTES DE AUTENTICAÇÃO ---
-
-// Define qual tela de autenticação será exibida
 type AuthView = 'login' | 'forgot_password' | 'update_password' | 'password_recovery_sent';
 
-// Componente de contêiner de autenticação (fundo e logo)
 const AuthContainer: React.FC<{ children: React.ReactNode }> = ({ children }) => (
   <div className="min-h-screen bg-black flex items-center justify-center p-5 relative">
     <img src="/bg_carbon.avif" alt="Fundo" className="absolute inset-0 w-full h-full object-cover z-0" style={{ pointerEvents: 'none', userSelect: 'none' }} />
@@ -293,7 +278,45 @@ const AuthContainer: React.FC<{ children: React.ReactNode }> = ({ children }) =>
   </div>
 );
 
-// Componente para a tela de Login
+// Este componente lida com o redirecionamento inicial a partir de um link de e-mail.
+const ActionConfirmationView: React.FC = () => {
+  const [message, setMessage] = useState('Redirecionando para a confirmação...');
+  const [isError, setIsError] = useState(false);
+
+  useEffect(() => {
+    // O objetivo desta página é pegar o 'confirmation_url' dos parâmetros da URL
+    // e redirecionar o navegador para ele imediatamente.
+    const params = new URLSearchParams(window.location.search);
+    const confirmationUrl = params.get('confirmation_url');
+
+    if (confirmationUrl) {
+      // Se o URL de confirmação for encontrado, redireciona o usuário.
+      // O navegador irá para o Supabase, que irá verificar o token e depois
+      // redirecionar de volta para a aplicação, onde o fluxo de convite/recuperação continuará.
+      window.location.href = confirmationUrl;
+    } else {
+      // Se 'confirmation_url' não estiver presente, significa que o link está quebrado ou incompleto.
+      setMessage('Link de confirmação inválido ou ausente. Por favor, verifique o link no seu e-mail.');
+      setIsError(true);
+    }
+  }, []); // O array vazio [] garante que este efeito rode apenas uma vez.
+
+  // Renderiza uma mensagem de "redirecionando" ou de erro.
+  return (
+    <AuthContainer>
+      <div className="text-center">
+        {isError ? (
+          <AlertCircle className="w-12 h-12 text-red-500 mx-auto mb-4" />
+        ) : (
+          <Loader2 className="animate-spin h-12 w-12 text-blue-600 mx-auto mb-4" />
+        )}
+        <p className="text-lg text-gray-700">{message}</p>
+      </div>
+    </AuthContainer>
+  );
+};
+
+
 const LoginView: React.FC<{
   onLogin: (email: string, pass: string) => Promise<void>;
   isLoggingIn: boolean;
@@ -314,7 +337,6 @@ const LoginView: React.FC<{
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-2">Email</label>
           <div className="relative">
-            {/* CORREÇÃO: Contêiner para centralizar o ícone */}
             <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
               <Mail className="h-5 w-5 text-gray-400" />
             </div>
@@ -324,7 +346,6 @@ const LoginView: React.FC<{
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-2">Senha</label>
           <div className="relative">
-            {/* CORREÇÃO: Contêiner para centralizar o ícone */}
             <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
               <KeyRound className="h-5 w-5 text-gray-400" />
             </div>
@@ -341,7 +362,6 @@ const LoginView: React.FC<{
   );
 };
 
-// Componente para a tela de Recuperação de Senha
 const ForgotPasswordView: React.FC<{
   onRecover: (email: string) => Promise<void>;
   isLoggingIn: boolean;
@@ -361,7 +381,6 @@ const ForgotPasswordView: React.FC<{
       <p className="text-center text-gray-500 text-sm mb-6">Digite seu email para receber o link.</p>
       <form onSubmit={handleSubmit} className="space-y-6">
         <div className="relative">
-          {/* CORREÇÃO: Contêiner para centralizar o ícone */}
           <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
             <Mail className="h-5 w-5 text-gray-400" />
           </div>
@@ -375,7 +394,6 @@ const ForgotPasswordView: React.FC<{
   );
 };
 
-// Componente para a tela de Email Enviado
 const PasswordRecoverySentView: React.FC<{
   email: string;
   setAuthView: (view: AuthView) => void;
@@ -390,7 +408,6 @@ const PasswordRecoverySentView: React.FC<{
   </AuthContainer>
 );
 
-// Componente para a tela de Atualizar Senha
 const UpdatePasswordView: React.FC<{
   onUpdate: (password: string) => Promise<void>;
   isLoggingIn: boolean;
@@ -409,7 +426,6 @@ const UpdatePasswordView: React.FC<{
       <p className="text-center text-gray-500 text-sm mb-6">Sua senha deve ter no mínimo 6 caracteres.</p>
       <form onSubmit={handleSubmit} className="space-y-6">
         <div className="relative">
-          {/* CORREÇÃO: Contêiner para centralizar o ícone */}
           <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
             <KeyRound className="h-5 w-5 text-gray-400" />
           </div>
@@ -423,8 +439,6 @@ const UpdatePasswordView: React.FC<{
 };
 
 // --- COMPONENTES DA APLICAÇÃO PRINCIPAL ---
-
-// Componente para exibir a miniatura (thumbnail) do vídeo
 const VideoThumbnail: React.FC<{ video: CloudinaryVideo; onClick: () => void }> = ({ video, onClick }) => {
   const [imageLoading, setImageLoading] = useState(true);
   const [imageError, setImageError] = useState(false);
@@ -477,35 +491,23 @@ const VideoThumbnail: React.FC<{ video: CloudinaryVideo; onClick: () => void }> 
   );
 };
 
-// Componente principal da aplicação
-const VideoApp = () => {
+const MainApp = () => {
   // --- ESTADOS (States) ---
-  // Estados do usuário e da aplicação
   const [user, setUser] = useState<User | null>(null);
   const [videos, setVideos] = useState<CloudinaryVideo[]>([]);
   const [loading, setLoading] = useState(false);
   const [selectedVideo, setSelectedVideo] = useState<CloudinaryVideo | null>(null);
   const [downloadingVideos, setDownloadingVideos] = useState<Set<string>>(new Set());
-
-  // Estados dos filtros (o que o usuário digita/seleciona)
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedMontadora, setSelectedMontadora] = useState('');
   const [selectedTag, setSelectedTag] = useState('');
-
-  // Estados dos filtros aplicados (o que realmente filtra a lista)
   const [appliedSearchTerm, setAppliedSearchTerm] = useState('');
   const [appliedSelectedMontadora, setAppliedSelectedMontadora] = useState('');
   const [appliedSelectedTag, setAppliedSelectedTag] = useState('');
-  
-  // Estados para listas de filtros disponíveis
   const [availableMontadoras, setAvailableMontadoras] = useState<string[]>([]);
   const [availableTags, setAvailableTags] = useState<string[]>([]);
-
-  // Instâncias das classes de API
   const supabase = useRef(new SupabaseClient());
   const cloudinary = useRef(new CloudinaryClient());
-
-  // Estados para o fluxo de autenticação
   const [authView, setAuthView] = useState<AuthView>('login');
   const [authError, setAuthError] = useState('');
   const [isLoggingIn, setIsLoggingIn] = useState(false);
@@ -513,44 +515,58 @@ const VideoApp = () => {
   const [recoveryEmail, setRecoveryEmail] = useState('');
 
   // --- EFEITOS (UseEffects) ---
-  // Roda uma vez quando o componente é montado
   useEffect(() => {
-    // Verifica se já existe um usuário no localStorage
+    // Tenta carregar o usuário do localStorage primeiro.
     const storedUser = supabase.current.getUser();
     if (storedUser) {
       setUser(storedUser);
-    } else {
-      // Verifica se a URL contém um token de recuperação de senha
-      const hash = window.location.hash;
-      const params = new URLSearchParams(hash.substring(1));
-      const accessToken = params.get('access_token');
-      if (accessToken) {
-        setRecoveryToken(accessToken);
-        setAuthView('update_password');
-      }
+      return;
     }
+
+    // ✅ Lógica de autenticação corrigida para o fluxo de convite.
+    const handleAuthRedirect = () => {
+        const hashParams = new URLSearchParams(window.location.hash.substring(1));
+        const accessToken = hashParams.get('access_token');
+        const type = hashParams.get('type');
+        const errorDescription = hashParams.get('error_description');
+
+        // Se houver um token de acesso para recuperação de senha OU convite,
+        // o usuário deve ser levado para a tela de criação/atualização de senha.
+        if (accessToken && (type === 'recovery' || type === 'invite')) {
+            setRecoveryToken(accessToken); // O token é necessário para a API de atualização de senha.
+            setAuthView('update_password'); // Mostra a tela de criação de senha.
+            window.history.replaceState(null, '', window.location.pathname); // Limpa a URL para segurança.
+        } else if (errorDescription) {
+            const friendlyError = errorDescription.replace(/\+/g, ' ');
+            setAuthError(`Erro: ${friendlyError}. Por favor, solicite um novo link.`);
+            window.history.replaceState(null, '', window.location.pathname);
+        }
+    };
+
+    handleAuthRedirect();
+    // O event listener é mantido para casos onde o hash muda dinamicamente.
+    window.addEventListener('hashchange', handleAuthRedirect);
+    return () => {
+      window.removeEventListener('hashchange', handleAuthRedirect);
+    };
   }, []);
 
-  // Roda sempre que o estado 'user' muda
   useEffect(() => {
     if (user) {
       loadAllVideos();
     }
   }, [user]);
   
-  // Roda quando a lista de vídeos é atualizada para extrair os filtros
   useEffect(() => {
     setAvailableMontadoras(extractMontadoras(videos));
     setAvailableTags(extractTags(videos));
   }, [videos]);
   
-  // Roda a busca sempre que um dos filtros aplicados muda
   useEffect(() => {
     if (user) executeSearch();
   }, [user, appliedSearchTerm, appliedSelectedMontadora, appliedSelectedTag]);
 
   // --- FUNÇÕES DE LÓGICA ---
-  // Extrai montadoras únicas da lista de vídeos
   const extractMontadoras = (videos: CloudinaryVideo[]): string[] => {
     const montadoras = new Set<string>();
     videos.forEach(video => {
@@ -560,7 +576,6 @@ const VideoApp = () => {
     return Array.from(montadoras).sort();
   };
 
-  // Extrai tags únicas da lista de vídeos
   const extractTags = (videos: CloudinaryVideo[]): string[] => {
     const tags = new Set<string>();
     videos.forEach(video => {
@@ -573,19 +588,16 @@ const VideoApp = () => {
     return Array.from(tags).sort();
   };
 
-  // Filtra vídeos pela montadora
   const filterVideosByMontadora = (videos: CloudinaryVideo[], montadora: string): CloudinaryVideo[] => {
     if (!montadora) return videos;
     return videos.filter(video => video.metadata?.montadora?.toLowerCase().includes(montadora.toLowerCase()));
   };
 
-  // Filtra vídeos pela tag
   const filterVideosByTag = (videos: CloudinaryVideo[], tag: string): CloudinaryVideo[] => {
     if (!tag) return videos;
     return videos.filter(video => Array.isArray(video.tags) && video.tags.some(videoTag => videoTag.toLowerCase().includes(tag.toLowerCase())));
   };
 
-  // Filtra vídeos pelo termo de busca em vários campos
   const filterVideosBySearchTerm = (videos: CloudinaryVideo[], searchTerm: string): CloudinaryVideo[] => {
     if (!searchTerm) return videos;
     const term = searchTerm.toLowerCase();
@@ -597,7 +609,6 @@ const VideoApp = () => {
     );
   };
 
-  // Retorna a lista de vídeos após aplicar todos os filtros
   const getFilteredVideos = (): CloudinaryVideo[] => {
     let filtered = videos;
     filtered = filterVideosBySearchTerm(filtered, appliedSearchTerm);
@@ -608,7 +619,6 @@ const VideoApp = () => {
 
   const filteredVideos = getFilteredVideos();
 
-  // Carrega todos os vídeos da biblioteca
   const loadAllVideos = async () => {
     if (!user) return;
     setLoading(true);
@@ -616,14 +626,13 @@ const VideoApp = () => {
       const cloudinaryVideos = await cloudinary.current.getAllVideos();
       setVideos(cloudinaryVideos);
     } catch (error: any) {
-      alert(`Erro ao carregar biblioteca: ${error.message}`);
+      console.error("Erro ao carregar biblioteca:", error);
       setVideos([]);
     } finally {
       setLoading(false);
     }
   };
 
-  // Executa uma busca com base nos filtros aplicados
   const executeSearch = async () => {
     if (!user) return;
     setLoading(true);
@@ -637,7 +646,7 @@ const VideoApp = () => {
       filteredResults = filterVideosByTag(filteredResults, appliedSelectedTag);
       setVideos(filteredResults);
     } catch (error: any) {
-      alert(`Erro na busca: ${error.message}`);
+      console.error("Erro na busca:", error);
       setVideos([]);
     } finally {
       setLoading(false);
@@ -645,15 +654,12 @@ const VideoApp = () => {
   };
 
   // --- FUNÇÕES DE EVENTO (Handlers) ---
-  // Define o termo de busca a ser aplicado
   const handleSearchButtonClick = () => setAppliedSearchTerm(searchTerm);
   
-  // Permite buscar com a tecla Enter
   const handleSearchInputKeyPress = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Enter') handleSearchButtonClick();
   };
 
-  // Limpa todos os filtros
   const clearAllFilters = () => {
     setSearchTerm('');
     setSelectedMontadora('');
@@ -663,7 +669,6 @@ const VideoApp = () => {
     setAppliedSelectedTag('');
   };
 
-  // Lida com o processo de login
   const handleLogin = async (email: string, pass: string) => {
     setAuthError('');
     setIsLoggingIn(true);
@@ -686,7 +691,6 @@ const VideoApp = () => {
     }
   };
 
-  // Lida com o logout
   const handleLogout = async () => {
     await supabase.current.signOut();
     setUser(null);
@@ -694,7 +698,6 @@ const VideoApp = () => {
     window.history.replaceState(null, '', window.location.pathname);
   };
 
-  // Lida com o pedido de recuperação de senha
   const handlePasswordRecovery = async (email: string) => {
     setAuthError('');
     setIsLoggingIn(true);
@@ -710,7 +713,6 @@ const VideoApp = () => {
     }
   };
 
-  // Lida com a atualização da senha
   const handleUpdatePassword = async (password: string) => {
     if (!recoveryToken) {
       setAuthError("Token de recuperação inválido ou expirado.");
@@ -725,7 +727,7 @@ const VideoApp = () => {
     try {
       const { error } = await supabase.current.updateUserPassword(recoveryToken, password);
       if (error) throw error;
-      alert("Senha atualizada com sucesso! Você será redirecionado para o login.");
+      alert("Senha definida com sucesso! Agora você pode fazer o login.");
       setAuthView('login');
       window.history.replaceState(null, '', window.location.pathname);
     } catch (error: any) {
@@ -735,7 +737,6 @@ const VideoApp = () => {
     }
   };
 
-  // Lida com o download do vídeo
   const handleDownload = async (video: CloudinaryVideo) => {
     setDownloadingVideos(prev => new Set(prev).add(video.public_id));
     try {
@@ -765,7 +766,6 @@ const VideoApp = () => {
     }
   };
 
-  // Compartilha o vídeo usando a API nativa do navegador
   const shareVideoViaWebShare = async (video: CloudinaryVideo) => {
     try {
       const response = await fetch(video.secure_url);
@@ -788,7 +788,6 @@ const VideoApp = () => {
   // --- RENDERIZAÇÃO ---
   const isAdmin = user?.tipo_perfil === 'admin';
 
-  // Se não houver usuário logado, renderiza uma das telas de autenticação
   if (!user) {
     switch (authView) {
       case 'forgot_password':
@@ -802,7 +801,6 @@ const VideoApp = () => {
     }
   }
 
-  // Se houver usuário logado, renderiza a aplicação principal
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Cabeçalho */}
@@ -917,100 +915,24 @@ const VideoApp = () => {
           <div className="bg-white rounded-lg w-full max-w-4xl max-h-[90vh] overflow-y-auto">
             <div className="p-4 md:p-6">
               <div className="flex justify-between items-center mb-4">
-                <h2 className="text-lg md:text-xl font-bold pr-4 truncate">
-                  {selectedVideo.context?.custom?.title || selectedVideo.display_name}
-                </h2>
-                <button
-                  onClick={() => setSelectedVideo(null)}
-                  className="text-gray-500 hover:text-gray-700 p-2 -m-2"
-                >
-                  <X className="w-6 h-6" />
-                </button>
+                <h2 className="text-lg md:text-xl font-bold pr-4 truncate">{selectedVideo.context?.custom?.title || selectedVideo.display_name}</h2>
+                <button onClick={() => setSelectedVideo(null)} className="text-gray-500 hover:text-gray-700 p-2 -m-2"><X className="w-6 h-6" /></button>
               </div>
               <div className="mb-4">
-                <video
-                  className="w-full max-h-60 md:max-h-96 rounded"
-                  controls
-                  autoPlay
-                >
+                <video className="w-full max-h-60 md:max-h-96 rounded" controls autoPlay>
                   <source src={selectedVideo.secure_url} type={`video/${selectedVideo.format}`} />
                   Seu navegador não suporta o elemento de vídeo.
                 </video>
               </div>
               <div className="space-y-3">
-                {selectedVideo.metadata?.montadora && (
-                  <div className="flex flex-wrap gap-1 mb-3">
-                    <span
-                      className="text-gray-400 text-sm flex items-center gap-1 w-fit cursor-pointer hover:text-gray-600"
-                      onClick={() => {
-                        if (selectedVideo.metadata?.montadora) {
-                          setSelectedMontadora(selectedVideo.metadata.montadora);
-                          setAppliedSelectedMontadora(selectedVideo.metadata.montadora);
-                          setSelectedVideo(null);
-                        }
-                      }}
-                    >
-                      {selectedVideo.metadata.montadora.toUpperCase()}
-                    </span>
-                  </div>
-                )}
-                {(selectedVideo.context?.alt || selectedVideo.metadata?.legenda) && (
-                  <div>
-                    <p className="text-gray-600 text-sm md:text-base">
-                      {selectedVideo.context?.alt || selectedVideo.metadata?.legenda}
-                    </p>
-                  </div>
-                )}
-                {selectedVideo.tags && selectedVideo.tags.length > 0 && (
-                  <div>
-                    <div className="flex flex-wrap gap-2">
-                      {selectedVideo.tags.map((tag: string, index: number) => (
-                        <span
-                          key={index}
-                          className="bg-yellow-100 text-yellow-700 px-3 py-1 rounded-full text-sm flex items-center gap-1 cursor-pointer hover:bg-yellow-200"
-                          onClick={() => {
-                            setSelectedTag(tag);
-                            setAppliedSelectedTag(tag);
-                            setSelectedVideo(null);
-                          }}
-                        >
-                          <Hash className="w-3 h-3" />
-                          {tag}
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-                )}
+                {selectedVideo.metadata?.montadora && <div className="flex flex-wrap gap-1 mb-3"><span className="text-gray-400 text-sm flex items-center gap-1 w-fit cursor-pointer hover:text-gray-600" onClick={() => { if (selectedVideo.metadata?.montadora) { setSelectedMontadora(selectedVideo.metadata.montadora); setAppliedSelectedMontadora(selectedVideo.metadata.montadora); setSelectedVideo(null); } }}>{selectedVideo.metadata.montadora.toUpperCase()}</span></div>}
+                {(selectedVideo.context?.alt || selectedVideo.metadata?.legenda) && <div><p className="text-gray-600 text-sm md:text-base">{selectedVideo.context?.alt || selectedVideo.metadata?.legenda}</p></div>}
+                {selectedVideo.tags && selectedVideo.tags.length > 0 && <div><div className="flex flex-wrap gap-2">{selectedVideo.tags.map((tag: string, index: number) => <span key={index} className="bg-yellow-100 text-yellow-700 px-3 py-1 rounded-full text-sm flex items-center gap-1 cursor-pointer hover:bg-yellow-200" onClick={() => { setSelectedTag(tag); setAppliedSelectedTag(tag); setSelectedVideo(null); }}><Hash className="w-3 h-3" />{tag}</span>)}</div></div>}
                 <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3 pt-4 border-t">
-                  <div className="text-sm text-gray-500 flex items-center gap-1">
-                    <Calendar className="w-4 h-4" />
-                    Adicionado em {new Date(selectedVideo.created_at).toLocaleDateString('pt-BR')}
-                  </div>
+                  <div className="text-sm text-gray-500 flex items-center gap-1"><Calendar className="w-4 h-4" />Adicionado em {new Date(selectedVideo.created_at).toLocaleDateString('pt-BR')}</div>
                   <div className="flex gap-2">
-                    <button
-                      onClick={() => handleDownload(selectedVideo)}
-                      disabled={downloadingVideos.has(selectedVideo.public_id)}
-                      className="hidden md:flex bg-gray-300 text-black px-4 py-2 rounded hover:bg-gray-400 flex items-center justify-center gap-2 disabled:opacity-50 min-h-[44px]"
-                    >
-                      {downloadingVideos.has(selectedVideo.public_id) ? (
-                        <>
-                          <Loader2 className="w-4 h-4 animate-spin" />
-                          Baixando...
-                        </>
-                      ) : (
-                        <>
-                          <Download className="w-4 h-4" />
-                          Baixar
-                        </>
-                      )}
-                    </button>
-                    <button
-                      onClick={() => { shareVideoViaWebShare(selectedVideo); }}
-                      className="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700 flex items-center justify-center gap-2 min-h-[44px]"
-                    >
-                      <MessageCircle className="w-4 h-4" />
-                      WhatsApp
-                    </button>
+                    <button onClick={() => handleDownload(selectedVideo)} disabled={downloadingVideos.has(selectedVideo.public_id)} className="hidden md:flex bg-gray-300 text-black px-4 py-2 rounded hover:bg-gray-400 flex items-center justify-center gap-2 disabled:opacity-50 min-h-[44px]">{downloadingVideos.has(selectedVideo.public_id) ? <><Loader2 className="w-4 h-4 animate-spin" />Baixando...</> : <><Download className="w-4 h-4" />Baixar</>}</button>
+                    <button onClick={() => { shareVideoViaWebShare(selectedVideo); }} className="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700 flex items-center justify-center gap-2 min-h-[44px]"><MessageCircle className="w-4 h-4" />WhatsApp</button>
                   </div>
                 </div>
               </div>
@@ -1025,4 +947,14 @@ const VideoApp = () => {
   );
 };
 
-export default VideoApp;
+// ✅ NOVO: Componente de topo que atua como um router
+const App = () => {
+  // Verifica se o caminho da URL é /confirm
+  if (window.location.pathname === '/confirm') {
+    return <ActionConfirmationView />;
+  }
+  // Caso contrário, renderiza a aplicação principal
+  return <MainApp />;
+};
+
+export default App;
