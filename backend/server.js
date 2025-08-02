@@ -7,14 +7,18 @@ require('dotenv').config();
 const app = express();
 const PORT = process.env.PORT || 5001;
 
-// Configuração do Cloudinary
+// --- CONFIGURAÇÕES ---
 const CLOUDINARY_CONFIG = {
   cloud_name: 'carboncars',
   api_key: process.env.CLOUDINARY_API_KEY,
   api_secret: process.env.CLOUDINARY_API_SECRET
 };
 
-// Middleware
+const SUPABASE_URL = 'https://sfkxgmxchziyfvdeybdl.supabase.co';
+const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY; 
+const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY;
+
+// --- MIDDLEWARE ---
 const allowedOrigins = [
   'http://localhost:3000',
   'http://localhost:3001',
@@ -33,22 +37,16 @@ app.use(cors({
 }));
 app.use(express.json());
 
-// ✅ ENDPOINT DE CONFIRMAÇÃO (A SOLUÇÃO)
-// Este endpoint atua como um proxy para o link de confirmação do Supabase.
+// --- ROTAS PÚBLICAS E DE VÍDEOS ---
 app.get('/api/confirm', (req, res) => {
   const { confirmation_url } = req.query;
-
   if (confirmation_url) {
-    console.log(`🔗 Redirecionando para o URL de confirmação: ${confirmation_url}`);
-    // Redireciona o utilizador para o link final do Supabase.
     res.redirect(confirmation_url);
   } else {
     res.status(400).send('URL de confirmação não fornecido.');
   }
 });
 
-
-// FUNÇÃO PARA OBTER DATA ATUAL NO FORMATO YYYY-MM-DD
 function getCurrentDate() {
   const today = new Date();
   const year = today.getFullYear();
@@ -57,7 +55,6 @@ function getCurrentDate() {
   return `${year}-${month}-${day}`;
 }
 
-// FUNÇÃO PARA GERAR EXPRESSÃO DE BUSCA COM DATA DINÂMICA
 function generateSearchExpression(additionalTerms = '') {
   const currentDate = getCurrentDate();
   let baseExpression = `resource_type:video AND (asset_folder:vendedores/*) AND (metadata.validade>${currentDate})`;
@@ -67,98 +64,165 @@ function generateSearchExpression(additionalTerms = '') {
   return baseExpression;
 }
 
-// ROTA - Buscar todos os vídeos com data dinâmica
 app.get('/api/videos', async (req, res) => {
   try {
     const expression = generateSearchExpression();
-    const searchBody = {
-      expression: expression,
-      with_field: ["metadata", "context", "tags"],
-      max_results: 500,
-      sort_by: [{"created_at": "desc"}]
-    };
-
-    const response = await fetch(`https://api.cloudinary.com/v1_1/${CLOUDINARY_CONFIG.cloud_name}/resources/search`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Basic ${Buffer.from(`${CLOUDINARY_CONFIG.api_key}:${CLOUDINARY_CONFIG.api_secret}`).toString('base64')}`
-      },
-      body: JSON.stringify(searchBody)
-    });
-
-    if (!response.ok) {
-        const errorText = await response.text();
-        return res.status(response.status).json({ 
-            error: 'Erro na API do Cloudinary', 
-            details: errorText 
-        });
-    }
-
+    const searchBody = { expression, with_field: ["metadata", "context", "tags"], max_results: 500, sort_by: [{"created_at": "desc"}] };
+    const response = await fetch(`https://api.cloudinary.com/v1_1/${CLOUDINARY_CONFIG.cloud_name}/resources/search`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Basic ${Buffer.from(`${CLOUDINARY_CONFIG.api_key}:${CLOUDINARY_CONFIG.api_secret}`).toString('base64')}` }, body: JSON.stringify(searchBody) });
+    if (!response.ok) throw new Error('Erro na API do Cloudinary');
     const data = await response.json();
     res.json(data);
-
   } catch (error) {
-    res.status(500).json({ 
-      error: 'Erro interno do servidor', 
-      message: error.message 
-    });
+    res.status(500).json({ error: 'Erro interno do servidor', message: error.message });
   }
 });
 
-// ROTA - Buscar vídeos por termo com data dinâmica
 app.post('/api/videos/search', async (req, res) => {
   try {
     const { searchTerm } = req.body;
     const expression = generateSearchExpression(searchTerm);
-
-    const searchBody = {
-      expression: expression,
-      with_field: ["metadata", "context", "tags"],
-      max_results: 500,
-      sort_by: [{"created_at": "desc"}]
-    };
-
-    const response = await fetch(`https://api.cloudinary.com/v1_1/${CLOUDINARY_CONFIG.cloud_name}/resources/search`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Basic ${Buffer.from(`${CLOUDINARY_CONFIG.api_key}:${CLOUDINARY_CONFIG.api_secret}`).toString('base64')}`
-      },
-      body: JSON.stringify(searchBody)
-    });
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      return res.status(response.status).json({ 
-        error: 'Erro na API do Cloudinary', 
-        details: errorText 
-      });
-    }
-
+    const searchBody = { expression, with_field: ["metadata", "context", "tags"], max_results: 500, sort_by: [{"created_at": "desc"}] };
+    const response = await fetch(`https://api.cloudinary.com/v1_1/${CLOUDINARY_CONFIG.cloud_name}/resources/search`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Basic ${Buffer.from(`${CLOUDINARY_CONFIG.api_key}:${CLOUDINARY_CONFIG.api_secret}`).toString('base64')}` }, body: JSON.stringify(searchBody) });
+    if (!response.ok) throw new Error('Erro na API do Cloudinary');
     const data = await response.json();
     res.json(data);
-
   } catch (error) {
-    res.status(500).json({ 
-      error: 'Erro interno do servidor', 
-      message: error.message 
-    });
+    res.status(500).json({ error: 'Erro interno do servidor', message: error.message });
   }
 });
 
-// Rota de teste
-app.get('/api/health', (req, res) => {
-  res.json({ 
-    status: 'OK', 
-    message: 'Backend funcionando!', 
-  });
+// --- ROTAS DA API ADMIN ---
+
+const checkAdminConfig = (req, res, next) => {
+    if (!SUPABASE_SERVICE_KEY || !SUPABASE_ANON_KEY) {
+        const missingKeys = [];
+        if (!SUPABASE_SERVICE_KEY) missingKeys.push('SUPABASE_SERVICE_ROLE_KEY');
+        if (!SUPABASE_ANON_KEY) missingKeys.push('SUPABASE_ANON_KEY');
+        
+        const errorMessage = `Erro de configuração no servidor. As seguintes chaves não foram encontradas no arquivo .env do backend: ${missingKeys.join(', ')}`;
+        console.error(`ERRO GRAVE: ${errorMessage}`);
+        return res.status(500).json({ error: 'Erro de Configuração', details: errorMessage });
+    }
+    next();
+};
+
+const getAdminHeaders = () => ({
+    'Authorization': `Bearer ${SUPABASE_SERVICE_KEY}`,
+    'apikey': SUPABASE_ANON_KEY,
+    'Content-Type': 'application/json'
 });
 
-const PORT_FINAL = process.env.PORT || 5001;
+app.get('/api/admin/users', checkAdminConfig, async (req, res) => {
+    try {
+        const response = await fetch(`${SUPABASE_URL}/auth/v1/admin/users`, { method: 'GET', headers: getAdminHeaders() });
+        const data = await response.json();
+        if (!response.ok) throw data;
+        res.json(data);
+    } catch (error) {
+        console.error("Erro ao buscar usuários (Admin):", error);
+        res.status(error.code || 500).json({ error: 'Falha ao buscar usuários', details: error.message || 'Erro desconhecido.' });
+    }
+});
 
-app.listen(PORT_FINAL, () => {
-  console.log(`🚀 Backend rodando na porta ${PORT_FINAL}`);
+app.post('/api/admin/invite', checkAdminConfig, async (req, res) => {
+    const { email } = req.body;
+    if (!email) return res.status(400).json({ error: 'Email é obrigatório.' });
+    try {
+        const response = await fetch(`${SUPABASE_URL}/auth/v1/invite`, { method: 'POST', headers: getAdminHeaders(), body: JSON.stringify({ email }) });
+        
+        if (!response.ok) {
+            const errorText = await response.text();
+            if (errorText.includes("Failed to send email")) {
+                 throw { 
+                    code: 500, 
+                    message: "Erro no Servidor de E-mail", 
+                    details: "O Supabase não conseguiu enviar o e-mail de convite. Verifique se o provedor de SMTP está configurado corretamente."
+                };
+            }
+            try {
+                throw JSON.parse(errorText);
+            } catch (jsonError) {
+                throw {
+                    code: response.status,
+                    message: "Erro retornado pelo Supabase",
+                    details: errorText
+                };
+            }
+        }
+
+        const data = await response.json();
+        res.status(201).json(data);
+    } catch (error) {
+        console.error("Erro ao convidar usuário (Admin):", error);
+        res.status(error.code || 500).json({ error: error.message || 'Falha ao convidar usuário', details: error.details || 'Erro desconhecido.' });
+    }
+});
+
+// ✅ ROTA ADICIONADA: Enviar link de recuperação de senha
+app.post('/api/admin/recover', checkAdminConfig, async (req, res) => {
+    const { email } = req.body;
+    if (!email) {
+        return res.status(400).json({ error: 'Email é obrigatório.' });
+    }
+    try {
+        const response = await fetch(`${SUPABASE_URL}/auth/v1/recover`, {
+            method: 'POST',
+            // Este endpoint específico usa a anon key no header, não a service_role na autorização
+            headers: {
+                'apikey': SUPABASE_ANON_KEY,
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ email })
+        });
+
+        if (!response.ok) {
+            const errorData = await response.json();
+            throw errorData;
+        }
+
+        res.status(200).json({ message: 'Link de recuperação enviado com sucesso.' });
+    } catch (error) {
+        console.error("Erro ao enviar link de recuperação (Admin):", error);
+        res.status(error.code || 500).json({ error: error.msg || 'Falha ao enviar link de recuperação', details: error.message || 'Erro desconhecido.' });
+    }
+});
+
+
+app.put('/api/admin/users/:id', checkAdminConfig, async (req, res) => {
+    const { id } = req.params;
+    const { role } = req.body;
+    if (!role) return res.status(400).json({ error: 'O novo perfil (role) é obrigatório.' });
+    
+    try {
+        const response = await fetch(`${SUPABASE_URL}/auth/v1/admin/users/${id}`, { method: 'PUT', headers: getAdminHeaders(), body: JSON.stringify({ user_metadata: { role: role } }) });
+        const data = await response.json();
+        if (!response.ok) throw data;
+        
+        res.json(data);
+    } catch (error) {
+        console.error("Erro ao atualizar usuário (Admin):", error);
+        res.status(error.code || 500).json({ error: 'Falha ao atualizar usuário', details: error.message });
+    }
+});
+
+app.delete('/api/admin/users/:id', checkAdminConfig, async (req, res) => {
+    const { id } = req.params;
+    try {
+        const response = await fetch(`${SUPABASE_URL}/auth/v1/admin/users/${id}`, { method: 'DELETE', headers: getAdminHeaders() });
+        if (response.status !== 204 && response.status !== 200) {
+             const errorData = await response.json().catch(() => ({}));
+             throw errorData;
+        }
+        res.status(204).send();
+    } catch (error) {
+        console.error("Erro ao deletar usuário (Admin):", error);
+        res.status(error.code || 500).json({ error: 'Falha ao deletar usuário', details: error.message });
+    }
+});
+
+// --- INICIALIZAÇÃO DO SERVIDOR ---
+app.listen(PORT, () => {
+  console.log(`🚀 Backend rodando na porta ${PORT}`);
 });
 
 module.exports = app;
