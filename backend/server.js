@@ -124,41 +124,55 @@ app.get('/api/admin/users', checkAdminConfig, async (req, res) => {
     }
 });
 
+// ✅ ROTA ATUALIZADA: Aceita um ou mais e-mails
 app.post('/api/admin/invite', checkAdminConfig, async (req, res) => {
-    const { email } = req.body;
-    if (!email) return res.status(400).json({ error: 'Email é obrigatório.' });
-    try {
-        const response = await fetch(`${SUPABASE_URL}/auth/v1/invite`, { method: 'POST', headers: getAdminHeaders(), body: JSON.stringify({ email }) });
-        
-        if (!response.ok) {
-            const errorText = await response.text();
-            if (errorText.includes("Failed to send email")) {
-                 throw { 
-                    code: 500, 
-                    message: "Erro no Servidor de E-mail", 
-                    details: "O Supabase não conseguiu enviar o e-mail de convite. Verifique se o provedor de SMTP está configurado corretamente."
-                };
-            }
-            try {
-                throw JSON.parse(errorText);
-            } catch (jsonError) {
-                throw {
-                    code: response.status,
-                    message: "Erro retornado pelo Supabase",
-                    details: errorText
-                };
-            }
-        }
+    const { emails } = req.body; // Espera um array de e-mails
 
-        const data = await response.json();
-        res.status(201).json(data);
-    } catch (error) {
-        console.error("Erro ao convidar usuário (Admin):", error);
-        res.status(error.code || 500).json({ error: error.message || 'Falha ao convidar usuário', details: error.details || 'Erro desconhecido.' });
+    if (!emails || !Array.isArray(emails) || emails.length === 0) {
+        return res.status(400).json({ error: 'A lista de e-mails (emails) é obrigatória.' });
     }
+
+    // Processa todos os convites em paralelo
+    const invitePromises = emails.map(email => 
+        fetch(`${SUPABASE_URL}/auth/v1/invite`, {
+            method: 'POST',
+            headers: getAdminHeaders(),
+            body: JSON.stringify({ email: email.trim() })
+        }).then(async response => {
+            if (response.ok) {
+                return { email, status: 'fulfilled' };
+            }
+            // Se houver erro, captura a razão
+            const errorText = await response.text();
+            let reason = 'Erro desconhecido';
+            try {
+                const errorJson = JSON.parse(errorText);
+                reason = errorJson.msg || errorJson.message || errorText;
+            } catch (e) {
+                reason = errorText;
+            }
+            return { email, status: 'rejected', reason };
+        })
+    );
+
+    const results = await Promise.all(invitePromises);
+
+    // Separa os resultados em sucesso e falha
+    const successful = results.filter(r => r.status === 'fulfilled').map(r => r.email);
+    const failed = results.filter(r => r.status === 'rejected').map(r => {
+        let cleanReason = r.reason;
+        if (cleanReason.includes('duplicate key') || cleanReason.includes('already exists')) {
+            cleanReason = 'Usuário já existe.';
+        } else if (cleanReason.includes('Failed to send email')) {
+            cleanReason = 'Falha no envio do e-mail (SMTP).';
+        }
+        return { email: r.email, reason: cleanReason };
+    });
+
+    res.status(200).json({ successful, failed });
 });
 
-// ✅ ROTA ADICIONADA: Enviar link de recuperação de senha
+
 app.post('/api/admin/recover', checkAdminConfig, async (req, res) => {
     const { email } = req.body;
     if (!email) {
@@ -167,7 +181,6 @@ app.post('/api/admin/recover', checkAdminConfig, async (req, res) => {
     try {
         const response = await fetch(`${SUPABASE_URL}/auth/v1/recover`, {
             method: 'POST',
-            // Este endpoint específico usa a anon key no header, não a service_role na autorização
             headers: {
                 'apikey': SUPABASE_ANON_KEY,
                 'Content-Type': 'application/json'

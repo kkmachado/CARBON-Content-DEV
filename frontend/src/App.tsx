@@ -24,7 +24,7 @@ import {
   PlusCircle,
   Trash2,
   Edit,
-  Send, // Ícone para Recuperar Senha
+  Send,
 } from 'lucide-react';
 
 // --- CONFIGURAÇÕES GLOBAIS ---
@@ -136,8 +136,8 @@ class SupabaseClient {
       return data.users;
   }
 
-  async adminInviteUser(email: string): Promise<any> {
-      const response = await fetch(`${this.backendUrl}/api/admin/invite`, { method: 'POST', headers: this.getHeaders(), body: JSON.stringify({ email }) });
+  async adminInviteUsers(emails: string[]): Promise<{ successful: string[], failed: { email: string, reason: string }[] }> {
+      const response = await fetch(`${this.backendUrl}/api/admin/invite`, { method: 'POST', headers: this.getHeaders(), body: JSON.stringify({ emails }) });
       if (!response.ok) throw await this.handleResponseError(response);
       return await response.json();
   }
@@ -206,11 +206,12 @@ const UserManagement = () => {
         fetchUsers();
     }, []);
 
-    const handleInvite = async (email: string) => {
-        await supabase.current.adminInviteUser(email);
-        setShowInviteModal(false);
-        fetchUsers();
-        alert('Convite enviado com sucesso!');
+    const handleInvite = async (emails: string[]): Promise<{ successful: string[], failed: any[] }> => {
+        const results = await supabase.current.adminInviteUsers(emails);
+        if (results.successful.length > 0) {
+            fetchUsers();
+        }
+        return results;
     };
 
     const handleUpdateRole = async (userId: string, role: 'admin' | 'normal') => {
@@ -279,7 +280,6 @@ const UserManagement = () => {
                                         </td>
                                         <td className="py-3 px-4">{user.last_sign_in_at ? new Date(user.last_sign_in_at).toLocaleString('pt-BR') : 'Nunca'}</td>
                                         <td className="py-3 px-4 flex gap-3">
-                                            {/* ✅ Tooltips adicionados */}
                                             <div className="relative group">
                                                 <button onClick={() => setShowRecoveryModal(user)} className="text-gray-600 hover:text-gray-800"><Send className="w-5 h-5" /></button>
                                                 <span className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-max px-2 py-1 bg-gray-700 text-white text-xs rounded-md opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">Enviar Recuperação</span>
@@ -310,34 +310,87 @@ const UserManagement = () => {
 };
 
 // --- COMPONENTES DE MODAL ---
-const InviteUserModal = ({ onInvite, onClose }: { onInvite: (email: string) => Promise<void>, onClose: () => void }) => {
-    const [email, setEmail] = useState('');
+const InviteUserModal = ({ onInvite, onClose }: { onInvite: (emails: string[]) => Promise<{ successful: string[], failed: any[] }>, onClose: () => void }) => {
+    const [emails, setEmails] = useState('');
     const [isInviting, setIsInviting] = useState(false);
+    const [results, setResults] = useState<{ successful: string[], failed: any[] } | null>(null);
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         setIsInviting(true);
+        setResults(null);
+        const emailList = emails.split(/[\n,;]+/).map(e => e.trim()).filter(Boolean);
+        if (emailList.length === 0) {
+            alert("Por favor, insira pelo menos um e-mail.");
+            setIsInviting(false);
+            return;
+        }
         try {
-            await onInvite(email);
+            const res = await onInvite(emailList);
+            setResults(res);
         } catch (e: any) {
-            console.error(e);
+            alert(`Erro ao processar a requisição: ${e.message}`);
         } finally {
             setIsInviting(false);
         }
     };
 
+    const handleClose = () => {
+        setResults(null);
+        setEmails('');
+        onClose();
+    };
+
     return (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
             <div className="bg-white rounded-lg p-6 w-full max-w-md">
-                <h3 className="text-lg font-bold mb-4">Convidar Novo Usuário</h3>
+                <h3 className="text-lg font-bold mb-4">Convidar Novos Usuários</h3>
                 <form onSubmit={handleSubmit}>
-                    <input type="email" value={email} onChange={e => setEmail(e.target.value)} className="w-full p-2 border rounded mb-4" placeholder="email@exemplo.com" required disabled={isInviting} />
-                    <div className="flex justify-end gap-2">
-                        <button type="button" onClick={onClose} className="bg-gray-200 px-4 py-2 rounded" disabled={isInviting}>Cancelar</button>
-                        <button type="submit" className="bg-blue-600 text-white px-4 py-2 rounded w-36 flex justify-center items-center" disabled={isInviting}>
-                            {isInviting ? <Loader2 className="w-5 h-5 animate-spin" /> : 'Enviar Convite'}
-                        </button>
-                    </div>
+                    {!results ? (
+                        <>
+                            <label htmlFor="emails-textarea" className="block text-sm font-medium text-gray-700 mb-2">
+                                E-mails dos usuários
+                            </label>
+                            <textarea
+                                id="emails-textarea"
+                                value={emails}
+                                onChange={e => setEmails(e.target.value)}
+                                className="w-full p-2 border rounded mb-4 h-40"
+                                placeholder="Digite um ou mais e-mails, separados por linha, vírgula ou ponto e vírgula."
+                                required
+                                disabled={isInviting}
+                            />
+                            <div className="flex justify-end gap-2">
+                                <button type="button" onClick={handleClose} className="bg-gray-200 px-4 py-2 rounded" disabled={isInviting}>Cancelar</button>
+                                <button type="submit" className="bg-blue-600 text-white px-4 py-2 rounded w-36 flex justify-center items-center" disabled={isInviting}>
+                                    {isInviting ? <Loader2 className="w-5 h-5 animate-spin" /> : 'Enviar Convites'}
+                                </button>
+                            </div>
+                        </>
+                    ) : (
+                        <>
+                            <h4 className="font-bold mb-2 text-lg">Resultados do Envio</h4>
+                            {results.successful.length > 0 && (
+                                <div className="mb-4">
+                                    <h5 className="text-green-600 font-semibold">{results.successful.length} Convites Enviados com Sucesso:</h5>
+                                    <ul className="list-disc list-inside text-sm text-gray-600 max-h-24 overflow-y-auto bg-gray-50 p-2 rounded">
+                                        {results.successful.map(email => <li key={email}>{email}</li>)}
+                                    </ul>
+                                </div>
+                            )}
+                            {results.failed.length > 0 && (
+                                <div>
+                                    <h5 className="text-red-600 font-semibold">{results.failed.length} Falhas:</h5>
+                                    <ul className="list-disc list-inside text-sm text-gray-600 max-h-24 overflow-y-auto bg-gray-50 p-2 rounded">
+                                        {results.failed.map(({ email, reason }) => <li key={email}><strong>{email}:</strong> {reason}</li>)}
+                                    </ul>
+                                </div>
+                            )}
+                            <div className="flex justify-end mt-4">
+                                <button type="button" onClick={handleClose} className="bg-gray-700 text-white px-4 py-2 rounded">Fechar</button>
+                            </div>
+                        </>
+                    )}
                 </form>
             </div>
         </div>
