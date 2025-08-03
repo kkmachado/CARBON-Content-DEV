@@ -299,7 +299,7 @@ const LoginView: React.FC<{ onLogin: (email: string, pass: string) => Promise<vo
             </div>
           </div>
         )}
-        <button type="submit" disabled={isLoggingIn} className="w-full bg-gray-700 text-white py-3 px-4 rounded-lg font-medium disabled:opacity-50">
+        <button type="submit" disabled={isLoggingIn} className="w-full bg-primary hover:bg-primary-hover transition-colors text-white py-3 px-4 rounded-lg font-medium disabled:opacity-50">
           {isLoggingIn ? <span className="flex items-center justify-center"><Loader2 className="animate-spin -ml-1 mr-3 h-5 w-5" />Entrando...</span> : 'Acessar'}
         </button>
       </form>
@@ -332,7 +332,7 @@ const ForgotPasswordView: React.FC<{ onRecover: (email: string) => Promise<void>
           <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} className="w-full p-3 pl-10 border border-gray-300 rounded-lg" placeholder="seu-email@carbon.cars" required disabled={isLoggingIn} />
         </div>
         {authError && <p className="text-red-500 text-sm text-center">{authError}</p>}
-        <button type="submit" disabled={isLoggingIn} className="w-full bg-gray-700 text-white py-3 rounded-lg font-medium disabled:opacity-50">
+        <button type="submit" disabled={isLoggingIn} className="w-full bg-primary hover:bg-primary-hover transition-colors text-white py-3 rounded-lg font-medium disabled:opacity-50">
           {isLoggingIn ? <Loader2 className="animate-spin mx-auto" /> : 'Enviar Link'}
         </button>
       </form>
@@ -352,7 +352,7 @@ const PasswordRecoverySentView: React.FC<{ email: string; setAuthView: (view: Au
       <p className="text-gray-600 mb-6">
         Se uma conta com o email <span className="font-bold">{email}</span> existir, enviamos um link para você redefinir sua senha.
       </p>
-      <button onClick={() => setAuthView('login')} className="w-full bg-gray-700 text-white py-3 rounded-lg font-medium">
+      <button onClick={() => setAuthView('login')} className="w-full bg-primary hover:bg-primary-hover transition-colors text-white py-3 rounded-lg font-medium">
         Voltar para o Login
       </button>
     </div>
@@ -379,7 +379,7 @@ const UpdatePasswordView: React.FC<{ onUpdate: (password: string) => Promise<voi
           <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} className="w-full p-3 pl-10 border border-gray-300 rounded-lg" placeholder="Digite a nova senha" required disabled={isLoggingIn} minLength={6} />
         </div>
         {authError && <p className="text-red-500 text-sm text-center">{authError}</p>}
-        <button type="submit" disabled={isLoggingIn} className="w-full bg-gray-700 text-white py-3 rounded-lg font-medium disabled:opacity-50">
+        <button type="submit" disabled={isLoggingIn} className="w-full bg-primary hover:bg-primary-hover transition-colors text-white py-3 rounded-lg font-medium disabled:opacity-50">
           {isLoggingIn ? <Loader2 className="animate-spin mx-auto" /> : 'Salvar Nova Senha'}
         </button>
       </form>
@@ -465,7 +465,7 @@ const UserManagement = () => {
                 </h2>
                 <button 
                     onClick={() => setShowInviteModal(true)} 
-                    className="bg-gray-700 text-white px-4 py-2 rounded-md hover:bg-gray-800 flex items-center gap-2 transition-all"
+                    className="bg-primary text-white px-4 py-2 rounded-md hover:bg-primary-hover flex items-center gap-2 transition-all"
                 >
                     <PlusCircle className="w-5 h-5" />
                     Convidar Usuário
@@ -474,7 +474,7 @@ const UserManagement = () => {
 
             {isLoading && (
                 <div className="text-center py-12">
-                    <Loader2 className="animate-spin h-12 w-12 text-blue-600 mx-auto" />
+                    <Loader2 className="animate-spin h-12 w-12 text-primary mx-auto" />
                 </div>
             )}
 
@@ -595,7 +595,7 @@ const InviteUserModal = ({ onInvite, onClose }: { onInvite: (emails: string[]) =
                             />
                             <div className="flex justify-end gap-2">
                                 <button type="button" onClick={handleClose} className="bg-gray-200 hover:bg-gray-300 px-4 py-2 rounded transition-colors" disabled={isInviting}>Cancelar</button>
-                                <button type="submit" className="bg-gray-700 hover:bg-gray-800 text-white px-4 py-2 rounded w-36 flex justify-center items-center transition-colors" disabled={isInviting}>
+                                <button type="submit" className="bg-primary hover:bg-primary-hover transition-colors text-white px-4 py-2 rounded w-36 flex justify-center items-center" disabled={isInviting}>
                                     {isInviting ? <Loader2 className="w-5 h-5 animate-spin" /> : 'Enviar Convites'}
                                 </button>
                             </div>
@@ -620,7 +620,7 @@ const InviteUserModal = ({ onInvite, onClose }: { onInvite: (emails: string[]) =
                                 </div>
                             )}
                             <div className="flex justify-end mt-4">
-                                <button type="button" onClick={handleClose} className="bg-gray-700 hover:bg-gray-800 text-white px-4 py-2 rounded transition-colors">Fechar</button>
+                                <button type="button" onClick={handleClose} className="bg-primary hover:bg-primary-hover transition-colors text-white px-4 py-2 rounded">Fechar</button>
                             </div>
                         </>
                     )}
@@ -645,7 +645,7 @@ const EditUserModal = ({ user, onUpdateRole, onClose }: { user: AdminUser, onUpd
                     </select>
                     <div className="flex justify-end gap-2">
                         <button type="button" onClick={onClose} className="bg-gray-200 hover:bg-gray-300 px-4 py-2 rounded transition-colors">Cancelar</button>
-                        <button type="submit" className="bg-gray-700 hover:bg-gray-800 text-white px-4 py-2 rounded transition-colors">Salvar</button>
+                        <button type="submit" className="bg-primary hover:bg-primary-hover transition-colors text-white px-4 py-2 rounded">Salvar</button>
                     </div>
                 </form>
             </div>
@@ -692,7 +692,7 @@ const RecoveryUserModal = ({ user, onSend, onClose }: { user: AdminUser, onSend:
                 <p className="mb-4">Deseja enviar um link de recuperação de senha para <strong>{user.email}</strong>?</p>
                 <div className="flex justify-center gap-4">
                     <button onClick={onClose} className="bg-gray-200 hover:bg-gray-300 transition-colors px-6 py-2 rounded" disabled={isSending}>Cancelar</button>
-                    <button onClick={handleSendClick} className="bg-gray-700 hover:bg-gray-800 transition-colors text-white px-6 py-2 rounded w-32 flex justify-center items-center" disabled={isSending}>
+                    <button onClick={handleSendClick} className="bg-primary hover:bg-primary-hover transition-colors text-white px-6 py-2 rounded w-32 flex justify-center items-center" disabled={isSending}>
                         {isSending ? <Loader2 className="w-5 h-5 animate-spin" /> : 'Enviar'}
                     </button>
                 </div>
@@ -729,7 +729,6 @@ const VideoThumbnail: React.FC<{ video: CloudinaryVideo; onClick: () => void }> 
           <Video className="w-8 h-8 text-blue-600" />
         </div>
       )}
-      <div className="absolute inset-0 bg-gradient-to-t from-black/50 via-transparent to-transparent opacity-0 group-hover:opacity-100 flex items-center justify-center transition-all duration-300 ease-in-out"></div>
       <div className="absolute inset-0 flex items-center justify-center">
         <div className="bg-white bg-opacity-25 backdrop-blur-sm rounded-xl py-3 px-6 transform group-hover:scale-110 transition-all duration-300 shadow-lg">
           <Play className="text-white w-8 h-8 fill-current transform translate-x-0.5" />
@@ -738,7 +737,6 @@ const VideoThumbnail: React.FC<{ video: CloudinaryVideo; onClick: () => void }> 
       <div className="absolute top-3 right-3 bg-black/80 backdrop-blur-sm text-white text-xs px-2.5 py-1 rounded-full font-medium">
         {video.duration ? `${Math.floor(video.duration / 60).toString().padStart(2, '0')}:${Math.floor(video.duration % 60).toString().padStart(2, '0')}` : '--:--'}
       </div>
-      <div className="absolute inset-0 border-2 border-transparent group-hover:border-blue-500/50 rounded-lg transition-colors duration-300 pointer-events-none"></div>
     </div>
   );
 };
@@ -851,8 +849,9 @@ const MainApp = () => {
   // Se houver usuário logado, renderiza a aplicação principal.
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col">
-      <header className="bg-black text-white shadow-lg sticky top-0 z-40">
-        <div className="max-w-6xl mx-auto py-4 px-6 flex justify-between items-center">
+      <header className="bg-black text-white shadow-lg sticky top-0 relative z-20">
+        <img src="/bg_carbon.avif" alt="Fundo" className="absolute inset-0 w-full h-full object-cover z-0" />
+        <div className="max-w-6xl mx-auto py-4 px-6 flex justify-between items-center z-20 relative">
           <h1 className="text-2xl font-bold">CARBON Content</h1>
           <div className="flex items-center gap-4">
               {isAdmin && currentView === 'library' && (
@@ -861,12 +860,12 @@ const MainApp = () => {
               {isAdmin && currentView === 'users' && (
                   <button onClick={() => setCurrentView('library')} className="bg-gray-700 px-4 py-2 rounded hover:bg-gray-800 transition-colors flex items-center gap-2"><Library className="w-4 h-4" />Biblioteca</button>
               )}
-            <button onClick={handleLogout} className="bg-red-600 px-4 py-2 rounded hover:bg-red-700 transition-colors flex items-center gap-2"><LogOut className="w-4 h-4" />Sair</button>
+            <button onClick={handleLogout} className="bg-red-700 px-4 py-2 rounded hover:bg-red-800 transition-colors flex items-center gap-2"><LogOut className="w-4 h-4" />Sair</button>
           </div>
         </div>
       </header>
       
-      <main className="flex-grow">
+      <main className="flex-grow relative z-0">
         <div className="max-w-6xl mx-auto md:p-6">
             {currentView === 'library' ? (
                 <>
@@ -907,7 +906,7 @@ const MainApp = () => {
                             </div>
                             <div className="flex flex-wrap items-center justify-between gap-4 pt-4 border-t">
                                 <div className="flex items-center gap-4">
-                                    <button onClick={handleSearchButtonClick} className="bg-gray-700 text-white px-6 py-2 rounded-md hover:bg-gray-800 flex items-center gap-2 transition-colors" disabled={loading}><Search className="w-4 h-4" />Buscar</button>
+                                    <button onClick={handleSearchButtonClick} className="bg-primary text-white px-6 py-2 rounded-md hover:bg-primary-hover flex items-center gap-2 transition-colors" disabled={loading}><Search className="w-4 h-4" />Buscar</button>
                                     {(appliedSearchTerm || appliedSelectedMontadora || appliedSelectedTag) && <button onClick={clearAllFilters} className="bg-red-100 text-red-600 px-4 py-2 rounded-md hover:bg-red-200 flex items-center gap-2"><X className="w-4 h-4" />Limpar Filtros</button>}
                                 </div>
                                 <div className="text-sm text-gray-600">
@@ -925,9 +924,9 @@ const MainApp = () => {
                             <div className="text-base font-normal text-gray-600 md:ml-7">{filteredVideos.length} {filteredVideos.length === 1 ? 'vídeo' : 'vídeos'}{filteredVideos.length !== videos.length && <span className="text-gray-500"> de {videos.length} total</span>}</div>
                         </div>
                         {loading ? (
-                            <div className="text-center py-12"><Loader2 className="animate-spin h-16 w-16 text-blue-600 mx-auto" /><p className="mt-4 text-lg">{appliedSearchTerm ? `Buscando "${appliedSearchTerm}"...` : 'Carregando...'}</p></div>
+                            <div className="text-center py-12"><Loader2 className="animate-spin h-16 w-16 text-primary mx-auto" /><p className="mt-4 text-lg">{appliedSearchTerm ? `Buscando "${appliedSearchTerm}"...` : 'Carregando...'}</p></div>
                         ) : filteredVideos.length === 0 ? (
-                            <div className="text-center py-12"><Video className="w-16 h-16 text-gray-400 mx-auto mb-4" /><p className="text-gray-500 text-lg">Nenhum vídeo encontrado</p><button onClick={clearAllFilters} className="mt-4 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700">Limpar filtros e recarregar</button></div>
+                            <div className="text-center py-12"><Video className="w-16 h-16 text-gray-400 mx-auto mb-4" /><p className="text-gray-500 text-lg">Nenhum vídeo encontrado</p><button onClick={clearAllFilters} className="mt-4 bg-primary hover:bg-primary-hover transition-colors text-white px-4 py-2 rounded-lg">Limpar filtros e recarregar</button></div>
                         ) : (
                             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                                 {filteredVideos.map((video) => (
@@ -944,7 +943,7 @@ const MainApp = () => {
                                             </div>
                                             <div className="flex gap-2">
                                                 <button onClick={() => handleDownload(video)} disabled={downloadingVideos.has(video.public_id)} className="hidden md:flex flex-1 bg-gray-300 text-black px-3 py-2 rounded text-sm hover:bg-gray-400 items-center justify-center gap-2 disabled:opacity-50 transition-colors">{downloadingVideos.has(video.public_id) ? <><Loader2 className="w-4 h-4 animate-spin" />Baixando...</> : <><Download className="w-4 h-4" />Baixar</>}</button>
-                                                <button onClick={(e) => { e.stopPropagation(); shareVideoViaWebShare(video); }} className="flex-1 bg-green-600 text-white px-3 py-2 rounded text-sm hover:bg-green-700 flex items-center justify-center gap-2 transition-colors"><MessageCircle className="w-4 h-4" />WhatsApp</button>
+                                                <button onClick={(e) => { e.stopPropagation(); shareVideoViaWebShare(video); }} className="flex-1 bg-whatsapp hover:bg-whatsapp-hover text-white px-3 py-2 rounded text-sm flex items-center justify-center gap-2 transition-colors"><MessageCircle className="w-4 h-4" />WhatsApp</button>
                                             </div>
                                         </div>
                                     </div>

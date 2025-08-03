@@ -35,6 +35,29 @@
       Learn how to configure a non-root public URL by running `npm run build`.
     -->
     <title>CARBON Content</title>
+
+    <!-- 1. Importação do Tailwind via CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+
+    <!-- 2. Bloco de Configuração Customizada -->
+    <script>
+      tailwind.config = {
+        theme: {
+          extend: {
+            // ✅  Aqui você pode definir suas cores customizadas
+            colors: {
+              'primary': '#293A45',   // Verde CARBON
+              'secondary': '#1A1A1A', // Preto CARBON
+              'accent': '#F03929',    // Laranja CARBON
+              'primary-hover': '#152021',
+              'whatsapp': '#00b464',
+              'whatsapp-hover': '#075E54',
+            }
+          }
+        }
+      }
+    </script>
+
   </head>
   <body>
     <noscript>You need to enable JavaScript to run this app.</noscript>
