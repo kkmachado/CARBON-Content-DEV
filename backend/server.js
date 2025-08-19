@@ -15,7 +15,7 @@ const CLOUDINARY_CONFIG = {
 };
 
 const SUPABASE_URL = 'https://sfkxgmxchziyfvdeybdl.supabase.co';
-const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY; 
+const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY;
 
 // --- MIDDLEWARE ---
@@ -37,7 +37,7 @@ app.use(cors({
 }));
 app.use(express.json());
 
-// --- ROTAS PÚBLICAS E DE VÍDEOS ---
+// --- ROTAS PÚBLICAS E DE MÍDIA ---
 app.get('/api/confirm', (req, res) => {
   const { confirmation_url } = req.query;
   if (confirmation_url) {
@@ -55,16 +55,19 @@ function getCurrentDate() {
   return `${year}-${month}-${day}`;
 }
 
+// Função de busca atualizada para incluir imagens
 function generateSearchExpression(additionalTerms = '') {
   const currentDate = getCurrentDate();
-  let baseExpression = `resource_type:video AND (asset_folder:vendedores/*) AND (metadata.validade>${currentDate})`;
+  // Alterado para buscar videos OU imagens
+  let baseExpression = `(resource_type:video OR resource_type:image) AND (asset_folder:vendedores/*) AND (metadata.validade>${currentDate})`;
   if (additionalTerms && additionalTerms.trim()) {
     baseExpression = `${additionalTerms.trim()} AND ${baseExpression}`;
   }
   return baseExpression;
 }
 
-app.get('/api/videos', async (req, res) => {
+// Rota renomeada de /api/videos para /api/media
+app.get('/api/media', async (req, res) => {
   try {
     const expression = generateSearchExpression();
     const searchBody = { expression, with_field: ["metadata", "context", "tags"], max_results: 500, sort_by: [{"created_at": "desc"}] };
@@ -77,7 +80,8 @@ app.get('/api/videos', async (req, res) => {
   }
 });
 
-app.post('/api/videos/search', async (req, res) => {
+// Rota renomeada de /api/videos/search para /api/media/search
+app.post('/api/media/search', async (req, res) => {
   try {
     const { searchTerm } = req.body;
     const expression = generateSearchExpression(searchTerm);
@@ -91,6 +95,7 @@ app.post('/api/videos/search', async (req, res) => {
   }
 });
 
+
 // --- ROTAS DA API ADMIN ---
 
 const checkAdminConfig = (req, res, next) => {
@@ -98,7 +103,7 @@ const checkAdminConfig = (req, res, next) => {
         const missingKeys = [];
         if (!SUPABASE_SERVICE_KEY) missingKeys.push('SUPABASE_SERVICE_ROLE_KEY');
         if (!SUPABASE_ANON_KEY) missingKeys.push('SUPABASE_ANON_KEY');
-        
+
         const errorMessage = `Erro de configuração no servidor. As seguintes chaves não foram encontradas no arquivo .env do backend: ${missingKeys.join(', ')}`;
         console.error(`ERRO GRAVE: ${errorMessage}`);
         return res.status(500).json({ error: 'Erro de Configuração', details: errorMessage });
@@ -124,16 +129,14 @@ app.get('/api/admin/users', checkAdminConfig, async (req, res) => {
     }
 });
 
-// ✅ ROTA ATUALIZADA: Aceita um ou mais e-mails
 app.post('/api/admin/invite', checkAdminConfig, async (req, res) => {
-    const { emails } = req.body; // Espera um array de e-mails
+    const { emails } = req.body;
 
     if (!emails || !Array.isArray(emails) || emails.length === 0) {
         return res.status(400).json({ error: 'A lista de e-mails (emails) é obrigatória.' });
     }
 
-    // Processa todos os convites em paralelo
-    const invitePromises = emails.map(email => 
+    const invitePromises = emails.map(email =>
         fetch(`${SUPABASE_URL}/auth/v1/invite`, {
             method: 'POST',
             headers: getAdminHeaders(),
@@ -142,7 +145,6 @@ app.post('/api/admin/invite', checkAdminConfig, async (req, res) => {
             if (response.ok) {
                 return { email, status: 'fulfilled' };
             }
-            // Se houver erro, captura a razão
             const errorText = await response.text();
             let reason = 'Erro desconhecido';
             try {
@@ -157,7 +159,6 @@ app.post('/api/admin/invite', checkAdminConfig, async (req, res) => {
 
     const results = await Promise.all(invitePromises);
 
-    // Separa os resultados em sucesso e falha
     const successful = results.filter(r => r.status === 'fulfilled').map(r => r.email);
     const failed = results.filter(r => r.status === 'rejected').map(r => {
         let cleanReason = r.reason;
@@ -205,12 +206,12 @@ app.put('/api/admin/users/:id', checkAdminConfig, async (req, res) => {
     const { id } = req.params;
     const { role } = req.body;
     if (!role) return res.status(400).json({ error: 'O novo perfil (role) é obrigatório.' });
-    
+
     try {
         const response = await fetch(`${SUPABASE_URL}/auth/v1/admin/users/${id}`, { method: 'PUT', headers: getAdminHeaders(), body: JSON.stringify({ user_metadata: { role: role } }) });
         const data = await response.json();
         if (!response.ok) throw data;
-        
+
         res.json(data);
     } catch (error) {
         console.error("Erro ao atualizar usuário (Admin):", error);

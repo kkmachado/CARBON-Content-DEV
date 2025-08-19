@@ -25,16 +25,15 @@ import {
   Trash2,
   Edit,
   Send,
+  Image as ImageIcon, // Adicionado ícone para imagem
 } from 'lucide-react';
 
 // --- CONFIGURAÇÕES GLOBAIS ---
-// Define as constantes usadas em toda a aplicação para a conexão com as APIs.
 const SUPABASE_URL = 'https://sfkxgmxchziyfvdeybdl.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNma3hnbXhjaHppeWZ2ZGV5YmRsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTE4OTEyMTAsImV4cCI6MjA2NzQ2NzIxMH0.F744lM-ovsBKDANBSzmGb3iMUCYWy4mrcGNDzuZs51E';
 const CLOUDINARY_CLOUD_NAME = 'carboncars';
 
 // --- INTERFACES TYPESCRIPT ---
-// Define a estrutura (o "molde") dos objetos de dados para garantir consistência.
 interface User {
   id: string;
   email: string;
@@ -49,21 +48,22 @@ interface AdminUser extends User {
     created_at: string;
 }
 
-interface CloudinaryVideo {
+// Interface renomeada e atualizada para suportar imagens e vídeos
+interface CloudinaryAsset {
   public_id: string;
   display_name: string;
   format: string;
-  duration: number;
+  duration?: number; // Duração é opcional (para imagens)
   bytes: number;
   secure_url: string;
   created_at: string;
   tags: string[];
+  resource_type: 'image' | 'video'; // Campo para diferenciar o tipo de mídia
   context?: { alt?: string; custom?: { caption?: string; title?: string; }; [key: string]: any; };
   metadata?: { validade?: string; acesso_grupo_iesa?: string; legenda?: string; montadora?: string; [key: string]: any; };
 }
 
 // --- CLASSE DE API PARA O SUPABASE ---
-// Agrupa todas as funções que se comunicam com a API do Supabase.
 class SupabaseClient {
   private url: string;
   private key: string;
@@ -77,14 +77,12 @@ class SupabaseClient {
     this.backendUrl = window.location.hostname === 'localhost' ? 'http://localhost:5001' : 'https://api.carboncontent.carlosmachado.tech';
   }
 
-  // Monta os cabeçalhos padrão para as requisições.
   private getHeaders(includeAuth: boolean = true): Record<string, string> {
     const headers: Record<string, string> = { 'Content-Type': 'application/json', 'apikey': this.key, 'Authorization': `Bearer ${this.key}` };
     if (includeAuth && this.token) { headers['Authorization'] = `Bearer ${this.token}`; }
     return headers;
   }
 
-  // Trata respostas de erro da API de forma padronizada.
   private async handleResponseError(response: Response): Promise<Error> {
     try {
         const errorData = await response.json();
@@ -96,7 +94,6 @@ class SupabaseClient {
     }
   }
 
-  // Autentica um usuário.
   async signIn(email: string, password: string): Promise<{ user: User, access_token: string }> {
     const response = await fetch(`${this.url}/auth/v1/token?grant_type=password`, { method: 'POST', headers: this.getHeaders(false), body: JSON.stringify({ email, password }) });
     const data = await response.json();
@@ -107,7 +104,6 @@ class SupabaseClient {
     return { user: data.user, access_token: this.token! };
   }
 
-  // Desloga o usuário.
   async signOut(): Promise<void> {
     await fetch(`${this.url}/auth/v1/logout`, { method: 'POST', headers: this.getHeaders(true) });
     this.token = null;
@@ -115,19 +111,16 @@ class SupabaseClient {
     localStorage.removeItem('supabase_user');
   }
 
-  // Envia e-mail de recuperação de senha.
   async sendPasswordResetEmail(email: string): Promise<void> {
     const response = await fetch(`${this.url}/auth/v1/recover`, { method: 'POST', headers: this.getHeaders(false), body: JSON.stringify({ email }) });
     if (!response.ok) { const errorData = await response.json(); throw new Error(errorData.message || 'Falha ao enviar email.'); }
   }
 
-  // Atualiza a senha do usuário a partir de um token de recuperação.
   async updateUserPassword(accessToken: string, password: string): Promise<void> {
     const response = await fetch(`${this.url}/auth/v1/user`, { method: 'PUT', headers: { 'Content-Type': 'application/json', 'apikey': this.key, 'Authorization': `Bearer ${accessToken}` }, body: JSON.stringify({ password }) });
     if (!response.ok) { const errorData = await response.json(); throw new Error(errorData.message || 'Falha ao atualizar a senha.'); }
   }
 
-  // Obtém os dados do usuário logado do localStorage.
   getUser(): User | null {
     try {
       const user = localStorage.getItem('supabase_user');
@@ -171,7 +164,6 @@ class SupabaseClient {
 }
 
 // --- CLASSE DE API PARA O CLOUDINARY ---
-// Agrupa todas as funções que se comunicam com a API do Cloudinary (através do nosso backend).
 class CloudinaryClient {
   private backendUrl: string;
 
@@ -179,48 +171,48 @@ class CloudinaryClient {
     this.backendUrl = window.location.hostname === 'localhost' ? 'http://localhost:5001' : 'https://api.carboncontent.carlosmachado.tech';
   }
 
-  async searchVideos(searchTerm: string): Promise<CloudinaryVideo[]> {
-    const response = await fetch(`${this.backendUrl}/api/videos/search`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ searchTerm }) });
+  // Métodos renomeados para 'Assets'
+  async searchAssets(searchTerm: string): Promise<CloudinaryAsset[]> {
+    const response = await fetch(`${this.backendUrl}/api/media/search`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ searchTerm }) });
     if (!response.ok) {
       const errorData = await response.json();
       throw new Error(errorData.error || 'Erro na busca');
     }
     const data = await response.json();
-    return this.formatCloudinaryVideos(data.resources || []);
+    return this.formatCloudinaryAssets(data.resources || []);
   }
 
-  async getAllVideos(): Promise<CloudinaryVideo[]> {
-    const response = await fetch(`${this.backendUrl}/api/videos`, { method: 'GET', headers: { 'Content-Type': 'application/json' } });
+  async getAllAssets(): Promise<CloudinaryAsset[]> {
+    const response = await fetch(`${this.backendUrl}/api/media`, { method: 'GET', headers: { 'Content-Type': 'application/json' } });
     if (!response.ok) {
       const errorData = await response.json();
-      throw new Error(errorData.error || 'Erro ao carregar vídeos');
+      throw new Error(errorData.error || 'Erro ao carregar mídias');
     }
     const data = await response.json();
-    return this.formatCloudinaryVideos(data.resources || []);
+    return this.formatCloudinaryAssets(data.resources || []);
   }
 
-  private formatCloudinaryVideos(resources: any[]): CloudinaryVideo[] {
+  private formatCloudinaryAssets(resources: any[]): CloudinaryAsset[] {
     return resources.map(resource => ({
       public_id: resource.public_id,
       display_name: resource.display_name || resource.public_id,
       format: resource.format || 'mp4',
-      duration: resource.duration || 0,
+      duration: resource.duration,
       bytes: resource.bytes || 0,
       secure_url: resource.secure_url,
       created_at: resource.created_at,
       tags: Array.isArray(resource.tags) ? resource.tags : [],
+      resource_type: resource.resource_type,
       context: resource.context || {},
       metadata: resource.metadata || {}
     }));
   }
 }
 
-// --- COMPONENTES DE AUTENTICAÇÃO ---
-// Componentes visuais para as telas de login, recuperação de senha, etc.
+// --- COMPONENTES DE AUTENTICAÇÃO (sem alterações) ---
 
 type AuthView = 'login' | 'forgot_password' | 'update_password' | 'password_recovery_sent';
 
-// Container visual padrão para as telas de autenticação.
 const AuthContainer: React.FC<{ children: React.ReactNode }> = ({ children }) => (
   <div className="min-h-screen bg-black flex items-center justify-center p-5 relative">
     <img src="/bg_carbon.avif" alt="Fundo" className="absolute inset-0 w-full h-full object-cover z-0" style={{ pointerEvents: 'none', userSelect: 'none' }} />
@@ -233,7 +225,6 @@ const AuthContainer: React.FC<{ children: React.ReactNode }> = ({ children }) =>
   </div>
 );
 
-// Componente que lida com o redirecionamento do link de e-mail.
 const ActionConfirmationView: React.FC = () => {
   const [message, setMessage] = useState('Redirecionando para a confirmação...');
   const [isError, setIsError] = useState(false);
@@ -259,7 +250,6 @@ const ActionConfirmationView: React.FC = () => {
   );
 };
 
-// Componente da tela de Login.
 const LoginView: React.FC<{ onLogin: (email: string, pass: string) => Promise<void>; isLoggingIn: boolean; authError: string; setAuthView: (view: AuthView) => void; }> = ({ onLogin, isLoggingIn, authError, setAuthView }) => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -312,7 +302,6 @@ const LoginView: React.FC<{ onLogin: (email: string, pass: string) => Promise<vo
   );
 };
 
-// Componente da tela "Esqueci minha senha".
 const ForgotPasswordView: React.FC<{ onRecover: (email: string) => Promise<void>; isLoggingIn: boolean; authError: string; setAuthView: (view: AuthView) => void; }> = ({ onRecover, isLoggingIn, authError, setAuthView }) => {
   const [email, setEmail] = useState('');
   const handleSubmit = (e: React.FormEvent) => {
@@ -343,7 +332,6 @@ const ForgotPasswordView: React.FC<{ onRecover: (email: string) => Promise<void>
   );
 };
 
-// Componente que mostra a mensagem de sucesso após pedir recuperação de senha.
 const PasswordRecoverySentView: React.FC<{ email: string; setAuthView: (view: AuthView) => void; }> = ({ email, setAuthView }) => (
   <AuthContainer>
     <div className="text-center">
@@ -359,7 +347,6 @@ const PasswordRecoverySentView: React.FC<{ email: string; setAuthView: (view: Au
   </AuthContainer>
 );
 
-// Componente para o usuário criar uma nova senha.
 const UpdatePasswordView: React.FC<{ onUpdate: (password: string) => Promise<void>; isLoggingIn: boolean; authError: string; }> = ({ onUpdate, isLoggingIn, authError }) => {
   const [password, setPassword] = useState('');
   const handleSubmit = (e: React.FormEvent) => {
@@ -387,8 +374,7 @@ const UpdatePasswordView: React.FC<{ onUpdate: (password: string) => Promise<voi
   );
 };
 
-// --- COMPONENTE DE GERENCIAMENTO DE USUÁRIOS ---
-// Tela de CRUD de usuários, visível apenas para administradores.
+// --- COMPONENTE DE GERENCIAMENTO DE USUÁRIOS (sem alterações) ---
 const UserManagement = () => {
     const [users, setUsers] = useState<AdminUser[]>([]);
     const [isLoading, setIsLoading] = useState(true);
@@ -399,7 +385,6 @@ const UserManagement = () => {
     const [showRecoveryModal, setShowRecoveryModal] = useState<AdminUser | null>(null);
     const supabase = useRef(new SupabaseClient());
 
-    // Função para buscar a lista de usuários do backend.
     const fetchUsers = async () => {
         setIsLoading(true);
         setError('');
@@ -413,21 +398,18 @@ const UserManagement = () => {
         }
     };
 
-    // Busca os usuários quando o componente é montado.
     useEffect(() => {
         fetchUsers();
     }, []);
 
-    // Função para lidar com o convite de novos usuários.
     const handleInvite = async (emails: string[]): Promise<{ successful: string[], failed: any[] }> => {
         const results = await supabase.current.adminInviteUsers(emails);
         if (results.successful.length > 0) {
-            fetchUsers(); // Atualiza a lista se algum convite teve sucesso.
+            fetchUsers();
         }
         return results;
     };
 
-    // Função para atualizar o perfil de um usuário.
     const handleUpdateRole = async (userId: string, role: 'admin' | 'normal') => {
         try {
             await supabase.current.adminUpdateUserRole(userId, role);
@@ -438,7 +420,6 @@ const UserManagement = () => {
         }
     };
     
-    // Função para deletar um usuário.
     const handleDelete = async (userId: string) => {
         try {
             await supabase.current.adminDeleteUser(userId);
@@ -449,7 +430,6 @@ const UserManagement = () => {
         }
     };
 
-    // Função para enviar o link de recuperação de senha.
     const handleSendRecovery = async (email: string) => {
         await supabase.current.adminSendRecovery(email);
         setShowRecoveryModal(null);
@@ -539,10 +519,7 @@ const UserManagement = () => {
     );
 };
 
-// --- COMPONENTES DE MODAL ---
-// Modais para as ações de CRUD de usuários.
-
-// Modal para convidar um ou mais usuários.
+// --- COMPONENTES DE MODAL (sem alterações) ---
 const InviteUserModal = ({ onInvite, onClose }: { onInvite: (emails: string[]) => Promise<{ successful: string[], failed: any[] }>, onClose: () => void }) => {
     const [emails, setEmails] = useState('');
     const [isInviting, setIsInviting] = useState(false);
@@ -630,7 +607,6 @@ const InviteUserModal = ({ onInvite, onClose }: { onInvite: (emails: string[]) =
     );
 };
 
-// Modal para editar o perfil de um usuário.
 const EditUserModal = ({ user, onUpdateRole, onClose }: { user: AdminUser, onUpdateRole: (userId: string, role: 'admin' | 'normal') => void, onClose: () => void }) => {
     const [role, setRole] = useState(user.user_metadata?.role || 'normal');
     const handleSubmit = (e: React.FormEvent) => { e.preventDefault(); onUpdateRole(user.id, role as 'admin' | 'normal'); };
@@ -653,7 +629,6 @@ const EditUserModal = ({ user, onUpdateRole, onClose }: { user: AdminUser, onUpd
     );
 };
 
-// Modal de confirmação para deletar um usuário.
 const DeleteUserModal = ({ user, onDelete, onClose }: { user: AdminUser, onDelete: (userId: string) => void, onClose: () => void }) => (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
         <div className="bg-white rounded-lg p-6 w-full max-w-md text-center">
@@ -668,7 +643,6 @@ const DeleteUserModal = ({ user, onDelete, onClose }: { user: AdminUser, onDelet
     </div>
 );
 
-// Modal de confirmação para enviar link de recuperação.
 const RecoveryUserModal = ({ user, onSend, onClose }: { user: AdminUser, onSend: (email: string) => Promise<void>, onClose: () => void }) => {
     const [isSending, setIsSending] = useState(false);
 
@@ -704,51 +678,78 @@ const RecoveryUserModal = ({ user, onSend, onClose }: { user: AdminUser, onSend:
 
 // --- COMPONENTES DA APLICAÇÃO PRINCIPAL ---
 
-// Componente para exibir a miniatura de um vídeo.
-const VideoThumbnail: React.FC<{ video: CloudinaryVideo; onClick: () => void }> = ({ video, onClick }) => {
+// Componente para exibir a miniatura de uma mídia (imagem ou vídeo).
+const AssetThumbnail: React.FC<{ asset: CloudinaryAsset; onClick: () => void }> = ({ asset, onClick }) => {
   const [imageLoading, setImageLoading] = useState(true);
   const [imageError, setImageError] = useState(false);
-  const getThumbnailUrl = (width: number = 400, height: number = 225) => { return `https://res.cloudinary.com/${CLOUDINARY_CLOUD_NAME}/video/upload/w_${width},h_${height},c_fill,q_auto,f_auto,so_0/${video.public_id}.jpg`; };
+
+  const getThumbnailUrl = (width: number = 400, height: number = 225) => {
+    if (asset.resource_type === 'video') {
+      return `https://res.cloudinary.com/${CLOUDINARY_CLOUD_NAME}/video/upload/w_${width},h_${height},c_fill,q_auto,f_auto,so_0/${asset.public_id}.jpg`;
+    }
+    // Para imagens, a URL de transformação é diferente
+    return `https://res.cloudinary.com/${CLOUDINARY_CLOUD_NAME}/image/upload/w_${width},h_${height},c_fill,q_auto,f_auto/${asset.public_id}.${asset.format}`;
+  };
+
   const thumbnailUrl = getThumbnailUrl(400, 225);
-  const fallbackUrl = getThumbnailUrl(400, 225).replace('so_0', 'so_1');
+  const fallbackUrl = asset.resource_type === 'video' ? getThumbnailUrl(400, 225).replace('so_0', 'so_1') : thumbnailUrl;
   const lowQualityUrl = getThumbnailUrl(200, 113);
+
   const handleImageLoad = () => setImageLoading(false);
-  const handleImageError = (e: React.SyntheticEvent<HTMLImageElement>) => { const target = e.target as HTMLImageElement; if (!imageError) { setImageError(true); target.src = fallbackUrl; } else { setImageLoading(false); } };
+  const handleImageError = (e: React.SyntheticEvent<HTMLImageElement>) => {
+    const target = e.target as HTMLImageElement;
+    if (!imageError) {
+      setImageError(true);
+      target.src = fallbackUrl;
+    } else {
+      setImageLoading(false);
+    }
+  };
 
   return (
     <div className="relative cursor-pointer group" onClick={onClick}>
       {imageLoading && (
         <div className="w-full h-48 bg-gradient-to-br from-gray-100 to-gray-200 flex items-center justify-center animate-pulse">
-          <Film className="w-8 h-8 text-gray-400" />
+          {asset.resource_type === 'video' ? <Film className="w-8 h-8 text-gray-400" /> : <ImageIcon className="w-8 h-8 text-gray-400" />}
         </div>
       )}
       <img src={lowQualityUrl} alt="" className={`absolute inset-0 w-full h-48 object-cover transition-opacity duration-300 ${imageLoading ? 'opacity-100' : 'opacity-0'}`} loading="lazy" />
-      <img src={thumbnailUrl} alt={video.context?.custom?.title || video.display_name} className={`w-full h-48 object-cover transition-opacity duration-300 ${imageLoading ? 'opacity-0' : 'opacity-100'}`} loading="lazy" onLoad={handleImageLoad} onError={handleImageError} />
+      <img src={thumbnailUrl} alt={asset.context?.custom?.title || asset.display_name} className={`w-full h-48 object-cover transition-opacity duration-300 ${imageLoading ? 'opacity-0' : 'opacity-100'}`} loading="lazy" onLoad={handleImageLoad} onError={handleImageError} />
+      
       {!imageLoading && imageError && (
         <div className="absolute inset-0 w-full h-48 bg-gradient-to-br from-blue-100 to-blue-200 flex items-center justify-center">
-          <Video className="w-8 h-8 text-blue-600" />
+            {asset.resource_type === 'video' ? <Video className="w-8 h-8 text-blue-600" /> : <ImageIcon className="w-8 h-8 text-blue-600" />}
         </div>
       )}
+
       <div className="absolute inset-0 flex items-center justify-center">
         <div className="bg-white bg-opacity-25 backdrop-blur-sm rounded-xl py-3 px-6 transform group-hover:scale-110 transition-all duration-300 shadow-lg">
-          <Play className="text-white w-8 h-8 fill-current transform translate-x-0.5" />
+          {asset.resource_type === 'video' ? <Play className="text-white w-8 h-8 fill-current transform translate-x-0.5" /> : <Search className="text-white w-8 h-8" />}
         </div>
       </div>
-      <div className="absolute top-3 right-3 bg-black/80 backdrop-blur-sm text-white text-xs px-2.5 py-1 rounded-full font-medium">
-        {video.duration ? `${Math.floor(video.duration / 60).toString().padStart(2, '0')}:${Math.floor(video.duration % 60).toString().padStart(2, '0')}` : '--:--'}
-      </div>
+      
+      {asset.resource_type === 'video' && asset.duration && (
+        <div className="absolute top-3 right-3 bg-black/80 backdrop-blur-sm text-white text-xs px-2.5 py-1 rounded-full font-medium">
+          {`${Math.floor(asset.duration / 60).toString().padStart(2, '0')}:${Math.floor(asset.duration % 60).toString().padStart(2, '0')}`}
+        </div>
+      )}
+       <div className="absolute bottom-3 left-3 bg-black/80 backdrop-blur-sm text-white text-xs px-2.5 py-1 rounded-full font-medium flex items-center gap-1.5">
+          {asset.resource_type === 'video' ? <Video className="w-3 h-3" /> : <ImageIcon className="w-3 h-3" />}
+          <span>{asset.resource_type === 'video' ? 'Vídeo' : 'Imagem'}</span>
+        </div>
     </div>
   );
 };
+
 
 // Componente principal que gerencia o estado da aplicação.
 const MainApp = () => {
   // --- ESTADOS (States) ---
   const [user, setUser] = useState<User | null>(null);
-  const [videos, setVideos] = useState<CloudinaryVideo[]>([]);
+  const [assets, setAssets] = useState<CloudinaryAsset[]>([]); // Renomeado
   const [loading, setLoading] = useState(false);
-  const [selectedVideo, setSelectedVideo] = useState<CloudinaryVideo | null>(null);
-  const [downloadingVideos, setDownloadingVideos] = useState<Set<string>>(new Set());
+  const [selectedAsset, setSelectedAsset] = useState<CloudinaryAsset | null>(null); // Renomeado
+  const [downloadingAssets, setDownloadingAssets] = useState<Set<string>>(new Set()); // Renomeado
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedMontadora, setSelectedMontadora] = useState('');
   const [selectedTag, setSelectedTag] = useState('');
@@ -797,42 +798,41 @@ const MainApp = () => {
 
   useEffect(() => {
     if (user) {
-      loadAllVideos();
+      loadAllAssets();
     }
   }, [user]);
 
   useEffect(() => {
-    setAvailableMontadoras(extractMontadoras(videos));
-    setAvailableTags(extractTags(videos));
-  }, [videos]);
+    setAvailableMontadoras(extractMontadoras(assets));
+    setAvailableTags(extractTags(assets));
+  }, [assets]);
 
   useEffect(() => {
     if (user) executeSearch();
   }, [user, appliedSearchTerm, appliedSelectedMontadora, appliedSelectedTag]);
 
   // --- FUNÇÕES DE LÓGICA ---
-  const extractMontadoras = (videos: CloudinaryVideo[]): string[] => { const montadoras = new Set<string>(); videos.forEach(video => { const montadora = video.metadata?.montadora; if (montadora && montadora.trim()) montadoras.add(montadora.trim()); }); return Array.from(montadoras).sort(); };
-  const extractTags = (videos: CloudinaryVideo[]): string[] => { const tags = new Set<string>(); videos.forEach(video => { if (Array.isArray(video.tags)) { video.tags.forEach(tag => { if (tag && tag.trim()) tags.add(tag.trim()); }); } }); return Array.from(tags).sort(); };
-  const filterVideosByMontadora = (videos: CloudinaryVideo[], montadora: string): CloudinaryVideo[] => { if (!montadora) return videos; return videos.filter(video => video.metadata?.montadora?.toLowerCase().includes(montadora.toLowerCase())); };
-  const filterVideosByTag = (videos: CloudinaryVideo[], tag: string): CloudinaryVideo[] => { if (!tag) return videos; return videos.filter(video => Array.isArray(video.tags) && video.tags.some(videoTag => videoTag.toLowerCase().includes(tag.toLowerCase()))); };
-  const filterVideosBySearchTerm = (videos: CloudinaryVideo[], searchTerm: string): CloudinaryVideo[] => { if (!searchTerm) return videos; const term = searchTerm.toLowerCase(); return videos.filter(video => (video.context?.custom?.title || video.display_name || '').toLowerCase().includes(term) || (video.metadata?.legenda || video.context?.custom?.caption || '').toLowerCase().includes(term) || (Array.isArray(video.tags) && video.tags.some(tag => tag.toLowerCase().includes(term))) || (video.metadata?.montadora || '').toLowerCase().includes(term) ); };
-  const getFilteredVideos = (): CloudinaryVideo[] => { let filtered = videos; filtered = filterVideosBySearchTerm(filtered, appliedSearchTerm); filtered = filterVideosByMontadora(filtered, appliedSelectedMontadora); filtered = filterVideosByTag(filtered, appliedSelectedTag); return filtered; };
-  const filteredVideos = getFilteredVideos();
-  const loadAllVideos = async () => { if (!user) return; setLoading(true); try { const cloudinaryVideos = await cloudinary.current.getAllVideos(); setVideos(cloudinaryVideos); } catch (error: any) { console.error("Erro ao carregar biblioteca:", error); setVideos([]); } finally { setLoading(false); } };
-  const executeSearch = async () => { if (!user) return; setLoading(true); try { if (!appliedSearchTerm.trim() && !appliedSelectedMontadora && !appliedSelectedTag) { await loadAllVideos(); return; } const cloudinaryVideos = await cloudinary.current.searchVideos(appliedSearchTerm); let filteredResults = filterVideosByMontadora(cloudinaryVideos, appliedSelectedMontadora); filteredResults = filterVideosByTag(filteredResults, appliedSelectedTag); setVideos(filteredResults); } catch (error: any) { console.error("Erro na busca:", error); setVideos([]); } finally { setLoading(false); } };
+  const extractMontadoras = (assets: CloudinaryAsset[]): string[] => { const montadoras = new Set<string>(); assets.forEach(asset => { const montadora = asset.metadata?.montadora; if (montadora && montadora.trim()) montadoras.add(montadora.trim()); }); return Array.from(montadoras).sort(); };
+  const extractTags = (assets: CloudinaryAsset[]): string[] => { const tags = new Set<string>(); assets.forEach(asset => { if (Array.isArray(asset.tags)) { asset.tags.forEach(tag => { if (tag && tag.trim()) tags.add(tag.trim()); }); } }); return Array.from(tags).sort(); };
+  const filterAssetsByMontadora = (assets: CloudinaryAsset[], montadora: string): CloudinaryAsset[] => { if (!montadora) return assets; return assets.filter(asset => asset.metadata?.montadora?.toLowerCase().includes(montadora.toLowerCase())); };
+  const filterAssetsByTag = (assets: CloudinaryAsset[], tag: string): CloudinaryAsset[] => { if (!tag) return assets; return assets.filter(asset => Array.isArray(asset.tags) && asset.tags.some(assetTag => assetTag.toLowerCase().includes(tag.toLowerCase()))); };
+  const filterAssetsBySearchTerm = (assets: CloudinaryAsset[], searchTerm: string): CloudinaryAsset[] => { if (!searchTerm) return assets; const term = searchTerm.toLowerCase(); return assets.filter(asset => (asset.context?.custom?.title || asset.display_name || '').toLowerCase().includes(term) || (asset.metadata?.legenda || asset.context?.custom?.caption || '').toLowerCase().includes(term) || (Array.isArray(asset.tags) && asset.tags.some(tag => tag.toLowerCase().includes(term))) || (asset.metadata?.montadora || '').toLowerCase().includes(term) ); };
+  const getFilteredAssets = (): CloudinaryAsset[] => { let filtered = assets; filtered = filterAssetsBySearchTerm(filtered, appliedSearchTerm); filtered = filterAssetsByMontadora(filtered, appliedSelectedMontadora); filtered = filterAssetsByTag(filtered, appliedSelectedTag); return filtered; };
+  const filteredAssets = getFilteredAssets();
+  const loadAllAssets = async () => { if (!user) return; setLoading(true); try { const cloudinaryAssets = await cloudinary.current.getAllAssets(); setAssets(cloudinaryAssets); } catch (error: any) { console.error("Erro ao carregar biblioteca:", error); setAssets([]); } finally { setLoading(false); } };
+  const executeSearch = async () => { if (!user) return; setLoading(true); try { if (!appliedSearchTerm.trim() && !appliedSelectedMontadora && !appliedSelectedTag) { await loadAllAssets(); return; } const cloudinaryAssets = await cloudinary.current.searchAssets(appliedSearchTerm); let filteredResults = filterAssetsByMontadora(cloudinaryAssets, appliedSelectedMontadora); filteredResults = filterAssetsByTag(filteredResults, appliedSelectedTag); setAssets(filteredResults); } catch (error: any) { console.error("Erro na busca:", error); setAssets([]); } finally { setLoading(false); } };
   const handleSearchButtonClick = () => setAppliedSearchTerm(searchTerm);
   const handleSearchInputKeyPress = (e: React.KeyboardEvent<HTMLInputElement>) => { if (e.key === 'Enter') handleSearchButtonClick(); };
   const clearAllFilters = () => { setSearchTerm(''); setSelectedMontadora(''); setSelectedTag(''); setAppliedSearchTerm(''); setAppliedSelectedMontadora(''); setAppliedSelectedTag(''); };
   const handleLogin = async (email: string, pass: string) => { setAuthError(''); setIsLoggingIn(true); try { const { user } = await supabase.current.signIn(email, pass); setUser(user); } catch (error: any) { let errorMessage = 'Erro de autenticação'; if (error && error.message) { const msg = error.message.toLowerCase(); if (msg.includes('invalid login credentials')) errorMessage = 'Email ou senha incorretos.'; else if (msg.includes('user not found')) errorMessage = 'Usuário não encontrado.'; else if (msg.includes('rate limit')) errorMessage = 'Muitas tentativas.'; else errorMessage = error.message; } setAuthError(errorMessage); } finally { setIsLoggingIn(false); } };
-  const handleLogout = async () => { await supabase.current.signOut(); setUser(null); setVideos([]); window.history.replaceState(null, '', window.location.pathname); };
+  const handleLogout = async () => { await supabase.current.signOut(); setUser(null); setAssets([]); window.history.replaceState(null, '', window.location.pathname); };
   const handlePasswordRecovery = async (email: string) => { setAuthError(''); setIsLoggingIn(true); try { await supabase.current.sendPasswordResetEmail(email); setRecoveryEmail(email); setAuthView('password_recovery_sent'); } catch (error: any) { setAuthError(error.message || 'Não foi possível enviar o email.'); } finally { setIsLoggingIn(false); } };
   const handleUpdatePassword = async (password: string) => { if (!recoveryToken) { setAuthError("Token inválido."); return; } if (password.length < 6) { setAuthError("A senha deve ter no mínimo 6 caracteres."); return; } setAuthError(''); setIsLoggingIn(true); try { await supabase.current.updateUserPassword(recoveryToken, password); alert("Senha definida com sucesso! Agora você pode fazer o login."); setAuthView('login'); window.history.replaceState(null, '', window.location.pathname); } catch (error: any) { setAuthError(error.message || 'Não foi possível atualizar a senha.'); } finally { setIsLoggingIn(false); } };
-  const handleDownload = async (video: CloudinaryVideo) => { setDownloadingVideos(prev => new Set(prev).add(video.public_id)); try { const cleanTitle = (video.context?.custom?.title || video.display_name || video.public_id).replace(/[^a-zA-Z0-9\s\-_]/g, ''); const fileName = `${cleanTitle}.${video.format}`; const response = await fetch(video.secure_url); const blob = await response.blob(); const blobUrl = window.URL.createObjectURL(blob); const link = document.createElement('a'); link.href = blobUrl; link.download = fileName; document.body.appendChild(link); link.click(); document.body.removeChild(link); window.URL.revokeObjectURL(blobUrl); } catch (error) { console.error('Erro no download:', error); window.open(video.secure_url, '_blank'); } finally { setTimeout(() => { setDownloadingVideos(prev => { const newSet = new Set(prev); newSet.delete(video.public_id); return newSet; }); }, 2000); } };
-  const shareVideoViaWebShare = async (video: CloudinaryVideo) => { try { const response = await fetch(video.secure_url); if (!response.ok) throw new Error('Erro ao baixar vídeo'); const blob = await response.blob(); const fileName = `${video.display_name}.${video.format}`; const file = new File([blob], fileName, { type: `video/${video.format}` }); if (navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) { await navigator.share({ title: video.display_name, text: video.context?.alt || '', files: [file] }); } } catch (error) { /* Falha silenciosa */ } };
+  const handleDownload = async (asset: CloudinaryAsset) => { setDownloadingAssets(prev => new Set(prev).add(asset.public_id)); try { const cleanTitle = (asset.context?.custom?.title || asset.display_name || asset.public_id).replace(/[^a-zA-Z0-9\s\-_]/g, ''); const fileName = `${cleanTitle}.${asset.format}`; const response = await fetch(asset.secure_url); const blob = await response.blob(); const blobUrl = window.URL.createObjectURL(blob); const link = document.createElement('a'); link.href = blobUrl; link.download = fileName; document.body.appendChild(link); link.click(); document.body.removeChild(link); window.URL.revokeObjectURL(blobUrl); } catch (error) { console.error('Erro no download:', error); window.open(asset.secure_url, '_blank'); } finally { setTimeout(() => { setDownloadingAssets(prev => { const newSet = new Set(prev); newSet.delete(asset.public_id); return newSet; }); }, 2000); } };
+  const shareAssetViaWebShare = async (asset: CloudinaryAsset) => { try { const response = await fetch(asset.secure_url); if (!response.ok) throw new Error('Erro ao baixar mídia'); const blob = await response.blob(); const fileName = `${asset.display_name}.${asset.format}`; const mimeType = asset.resource_type === 'video' ? `video/${asset.format}` : `image/${asset.format}`; const file = new File([blob], fileName, { type: mimeType }); if (navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) { await navigator.share({ title: asset.display_name, text: asset.context?.alt || '', files: [file] }); } } catch (error) { /* Falha silenciosa */ } };
   
   const isAdmin = user?.user_metadata?.role === 'admin';
 
-  // Se não houver usuário logado, mostra as telas de autenticação.
   if (!user) {
     switch (authView) {
       case 'forgot_password':
@@ -846,7 +846,6 @@ const MainApp = () => {
     }
   }
 
-  // Se houver usuário logado, renderiza a aplicação principal.
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col">
       <header className="bg-black text-white shadow-lg sticky top-0 relative z-20">
@@ -871,7 +870,7 @@ const MainApp = () => {
                 <>
                     {isAdmin && <div className="bg-green-100 border border-green-200 text-green-800 p-4 rounded-lg m-6 md:m-0 md:mb-6 flex items-center"><AlertCircle className="w-5 h-5 mr-3" />Você está logado como Administrador.</div>}
                     <div className="bg-white md:rounded-lg md:shadow-md p-6 md:mb-6">
-                        <h2 className="text-xl font-bold mb-4 flex items-center"><Search className="w-5 h-5 mr-2" />Buscar vídeos</h2>
+                        <h2 className="text-xl font-bold mb-4 flex items-center"><Search className="w-5 h-5 mr-2" />Buscar Mídia</h2>
                         <div className="space-y-4">
                             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                                 <div>
@@ -920,30 +919,30 @@ const MainApp = () => {
                     </div>
                     <div className="bg-white md:rounded-lg md:shadow-md p-6 mt-10">
                         <div className="mb-4">
-                            <div className="flex items-center mb-2 md:mb-0"><Library className="w-5 h-5 mr-2" /><h2 className="text-xl font-bold">Biblioteca de Vídeos</h2></div>
-                            <div className="text-base font-normal text-gray-600 md:ml-7">{filteredVideos.length} {filteredVideos.length === 1 ? 'vídeo' : 'vídeos'}{filteredVideos.length !== videos.length && <span className="text-gray-500"> de {videos.length} total</span>}</div>
+                            <div className="flex items-center mb-2 md:mb-0"><Library className="w-5 h-5 mr-2" /><h2 className="text-xl font-bold">Biblioteca de Mídia</h2></div>
+                            <div className="text-base font-normal text-gray-600 md:ml-7">{filteredAssets.length} {filteredAssets.length === 1 ? 'item' : 'itens'}{filteredAssets.length !== assets.length && <span className="text-gray-500"> de {assets.length} total</span>}</div>
                         </div>
                         {loading ? (
                             <div className="text-center py-12"><Loader2 className="animate-spin h-16 w-16 text-primary mx-auto" /><p className="mt-4 text-lg">{appliedSearchTerm ? `Buscando "${appliedSearchTerm}"...` : 'Carregando...'}</p></div>
-                        ) : filteredVideos.length === 0 ? (
-                            <div className="text-center py-12"><Video className="w-16 h-16 text-gray-400 mx-auto mb-4" /><p className="text-gray-500 text-lg">Nenhum vídeo encontrado</p><button onClick={clearAllFilters} className="mt-4 bg-primary hover:bg-primary-hover transition-colors text-white px-4 py-2 rounded-lg">Limpar filtros e recarregar</button></div>
+                        ) : filteredAssets.length === 0 ? (
+                            <div className="text-center py-12"><Video className="w-16 h-16 text-gray-400 mx-auto mb-4" /><p className="text-gray-500 text-lg">Nenhuma mídia encontrada</p><button onClick={clearAllFilters} className="mt-4 bg-primary hover:bg-primary-hover transition-colors text-white px-4 py-2 rounded-lg">Limpar filtros e recarregar</button></div>
                         ) : (
                             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                                {filteredVideos.map((video) => (
-                                    <div key={video.public_id} className="border rounded-lg overflow-hidden hover:shadow-lg transition-shadow duration-300 flex flex-col h-full">
-                                        <VideoThumbnail video={video} onClick={() => setSelectedVideo(video)} />
+                                {filteredAssets.map((asset) => (
+                                    <div key={asset.public_id} className="border rounded-lg overflow-hidden hover:shadow-lg transition-shadow duration-300 flex flex-col h-full">
+                                        <AssetThumbnail asset={asset} onClick={() => setSelectedAsset(asset)} />
                                         <div className="p-4 flex flex-col flex-1">
-                                            {video.metadata?.montadora && <div className="flex flex-wrap gap-1 mb-3"><span className="text-gray-400 text-sm flex items-center gap-1 w-fit cursor-pointer hover:text-gray-600" onClick={(e) => { e.stopPropagation(); if (video.metadata?.montadora) { setSelectedMontadora(video.metadata.montadora); setAppliedSelectedMontadora(video.metadata.montadora); } }}>{video.metadata.montadora.toUpperCase()}</span></div>}
-                                            <h3 className="font-bold text-lg mb-2 truncate">{video.context?.custom?.title || video.display_name}</h3>
-                                            {(video.context?.alt || video.metadata?.legenda) && <p className="text-gray-600 text-sm mb-3 line-clamp-2">{video.context?.alt || video.metadata?.legenda}</p>}
-                                            {video.tags && video.tags.length > 0 && <div className="flex flex-wrap gap-1 mb-3">{video.tags.slice(0, 3).map((tag: string, index: number) => <span key={index} className="bg-yellow-100 text-yellow-700 text-xs px-2 py-1 rounded-full flex items-center gap-1 cursor-pointer hover:bg-yellow-200 transition-colors" onClick={(e) => { e.stopPropagation(); setSelectedTag(tag); setAppliedSelectedTag(tag); }}><Hash className="w-2 h-2" />{tag}</span>)}{video.tags.length > 3 && <span className="text-gray-500 text-xs py-1">+{video.tags.length - 3} mais</span>}</div>}
+                                            {asset.metadata?.montadora && <div className="flex flex-wrap gap-1 mb-3"><span className="text-gray-400 text-sm flex items-center gap-1 w-fit cursor-pointer hover:text-gray-600" onClick={(e) => { e.stopPropagation(); if (asset.metadata?.montadora) { setSelectedMontadora(asset.metadata.montadora); setAppliedSelectedMontadora(asset.metadata.montadora); } }}>{asset.metadata.montadora.toUpperCase()}</span></div>}
+                                            <h3 className="font-bold text-lg mb-2 truncate">{asset.context?.custom?.title || asset.display_name}</h3>
+                                            {(asset.context?.alt || asset.metadata?.legenda) && <p className="text-gray-600 text-sm mb-3 line-clamp-2">{asset.context?.alt || asset.metadata?.legenda}</p>}
+                                            {asset.tags && asset.tags.length > 0 && <div className="flex flex-wrap gap-1 mb-3">{asset.tags.slice(0, 3).map((tag: string, index: number) => <span key={index} className="bg-yellow-100 text-yellow-700 text-xs px-2 py-1 rounded-full flex items-center gap-1 cursor-pointer hover:bg-yellow-200 transition-colors" onClick={(e) => { e.stopPropagation(); setSelectedTag(tag); setAppliedSelectedTag(tag); }}><Hash className="w-2 h-2" />{tag}</span>)}{asset.tags.length > 3 && <span className="text-gray-500 text-xs py-1">+{asset.tags.length - 3} mais</span>}</div>}
                                             <div className="text-xs text-gray-500 mb-3 flex items-center gap-3 grow mt-auto">
-                                                {video.format && <span className="flex items-center gap-1"><Calendar className="w-3 h-3" />{new Date(video.created_at).toLocaleDateString('pt-BR')}</span>}
-                                                {video.duration && <span className="flex items-center gap-1"><Clock className="w-3 h-3" />{Math.floor(video.duration / 60).toString().padStart(2, '0')}:{Math.floor(video.duration % 60).toString().padStart(2, '0')}</span>}
+                                                {asset.format && <span className="flex items-center gap-1"><Calendar className="w-3 h-3" />{new Date(asset.created_at).toLocaleDateString('pt-BR')}</span>}
+                                                {asset.resource_type === 'video' && asset.duration && <span className="flex items-center gap-1"><Clock className="w-3 h-3" />{Math.floor(asset.duration / 60).toString().padStart(2, '0')}:{Math.floor(asset.duration % 60).toString().padStart(2, '0')}</span>}
                                             </div>
                                             <div className="flex gap-2">
-                                                <button onClick={() => handleDownload(video)} disabled={downloadingVideos.has(video.public_id)} className="hidden md:flex flex-1 bg-gray-300 text-black px-3 py-2 rounded text-sm hover:bg-gray-400 items-center justify-center gap-2 disabled:opacity-50 transition-colors">{downloadingVideos.has(video.public_id) ? <><Loader2 className="w-4 h-4 animate-spin" />Baixando...</> : <><Download className="w-4 h-4" />Baixar</>}</button>
-                                                <button onClick={(e) => { e.stopPropagation(); shareVideoViaWebShare(video); }} className="flex-1 bg-whatsapp hover:bg-whatsapp-hover text-white px-3 py-2 rounded text-sm flex items-center justify-center gap-2 transition-colors"><MessageCircle className="w-4 h-4" />WhatsApp</button>
+                                                <button onClick={() => handleDownload(asset)} disabled={downloadingAssets.has(asset.public_id)} className="hidden md:flex flex-1 bg-gray-300 text-black px-3 py-2 rounded text-sm hover:bg-gray-400 items-center justify-center gap-2 disabled:opacity-50 transition-colors">{downloadingAssets.has(asset.public_id) ? <><Loader2 className="w-4 h-4 animate-spin" />Baixando...</> : <><Download className="w-4 h-4" />Baixar</>}</button>
+                                                <button onClick={(e) => { e.stopPropagation(); shareAssetViaWebShare(asset); }} className="flex-1 bg-whatsapp hover:bg-whatsapp-hover text-white px-3 py-2 rounded text-sm flex items-center justify-center gap-2 transition-colors"><MessageCircle className="w-4 h-4" />Compartilhar</button>
                                             </div>
                                         </div>
                                     </div>
@@ -958,29 +957,33 @@ const MainApp = () => {
         </div>
       </main>
       
-      {selectedVideo && (
+      {selectedAsset && (
         <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-lg w-full max-w-4xl max-h-[90vh] overflow-y-auto">
             <div className="p-4 md:p-6">
               <div className="flex justify-between items-center mb-4">
-                <h2 className="text-lg md:text-xl font-bold pr-4 truncate">{selectedVideo.context?.custom?.title || selectedVideo.display_name}</h2>
-                <button onClick={() => setSelectedVideo(null)} className="text-gray-500 hover:text-gray-700 p-2 -m-2"><X className="w-6 h-6" /></button>
+                <h2 className="text-lg md:text-xl font-bold pr-4 truncate">{selectedAsset.context?.custom?.title || selectedAsset.display_name}</h2>
+                <button onClick={() => setSelectedAsset(null)} className="text-gray-500 hover:text-gray-700 p-2 -m-2"><X className="w-6 h-6" /></button>
               </div>
-              <div className="mb-4">
-                <video className="w-full max-h-60 md:max-h-96 rounded" controls autoPlay>
-                  <source src={selectedVideo.secure_url} type={`video/${selectedVideo.format}`} />
-                  Seu navegador não suporta o elemento de vídeo.
-                </video>
+              <div className="mb-4 bg-gray-100 rounded flex justify-center items-center">
+                {selectedAsset.resource_type === 'video' ? (
+                  <video className="w-full max-h-60 md:max-h-96 rounded" controls autoPlay>
+                    <source src={selectedAsset.secure_url} type={`video/${selectedAsset.format}`} />
+                    Seu navegador não suporta o elemento de vídeo.
+                  </video>
+                ) : (
+                  <img src={selectedAsset.secure_url} alt={selectedAsset.context?.alt || selectedAsset.display_name} className="max-w-full max-h-60 md:max-h-96 rounded" />
+                )}
               </div>
               <div className="space-y-3">
-                {selectedVideo.metadata?.montadora && <div className="flex flex-wrap gap-1 mb-3"><span className="text-gray-400 text-sm flex items-center gap-1 w-fit cursor-pointer hover:text-gray-600" onClick={() => { if (selectedVideo.metadata?.montadora) { setSelectedMontadora(selectedVideo.metadata.montadora); setAppliedSelectedMontadora(selectedVideo.metadata.montadora); setSelectedVideo(null); } }}>{selectedVideo.metadata.montadora.toUpperCase()}</span></div>}
-                {(selectedVideo.context?.alt || selectedVideo.metadata?.legenda) && <div><p className="text-gray-600 text-sm md:text-base">{selectedVideo.context?.alt || selectedVideo.metadata?.legenda}</p></div>}
-                {selectedVideo.tags && selectedVideo.tags.length > 0 && <div><div className="flex flex-wrap gap-2">{selectedVideo.tags.map((tag: string, index: number) => <span key={index} className="bg-yellow-100 text-yellow-700 px-3 py-1 rounded-full text-sm flex items-center gap-1 cursor-pointer hover:bg-yellow-200 transition-colors" onClick={() => { setSelectedTag(tag); setAppliedSelectedTag(tag); setSelectedVideo(null); }}><Hash className="w-3 h-3" />{tag}</span>)}</div></div>}
+                {selectedAsset.metadata?.montadora && <div className="flex flex-wrap gap-1 mb-3"><span className="text-gray-400 text-sm flex items-center gap-1 w-fit cursor-pointer hover:text-gray-600" onClick={() => { if (selectedAsset.metadata?.montadora) { setSelectedMontadora(selectedAsset.metadata.montadora); setAppliedSelectedMontadora(selectedAsset.metadata.montadora); setSelectedAsset(null); } }}>{selectedAsset.metadata.montadora.toUpperCase()}</span></div>}
+                {(selectedAsset.context?.alt || selectedAsset.metadata?.legenda) && <div><p className="text-gray-600 text-sm md:text-base">{selectedAsset.context?.alt || selectedAsset.metadata?.legenda}</p></div>}
+                {selectedAsset.tags && selectedAsset.tags.length > 0 && <div><div className="flex flex-wrap gap-2">{selectedAsset.tags.map((tag: string, index: number) => <span key={index} className="bg-yellow-100 text-yellow-700 px-3 py-1 rounded-full text-sm flex items-center gap-1 cursor-pointer hover:bg-yellow-200 transition-colors" onClick={() => { setSelectedTag(tag); setAppliedSelectedTag(tag); setSelectedAsset(null); }}><Hash className="w-3 h-3" />{tag}</span>)}</div></div>}
                 <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3 pt-4 border-t">
-                  <div className="text-sm text-gray-500 flex items-center gap-1"><Calendar className="w-4 h-4" />Adicionado em {new Date(selectedVideo.created_at).toLocaleDateString('pt-BR')}</div>
+                  <div className="text-sm text-gray-500 flex items-center gap-1"><Calendar className="w-4 h-4" />Adicionado em {new Date(selectedAsset.created_at).toLocaleDateString('pt-BR')}</div>
                   <div className="flex gap-2">
-                    <button onClick={() => handleDownload(selectedVideo)} disabled={downloadingVideos.has(selectedVideo.public_id)} className="hidden md:flex bg-gray-300 text-black px-4 py-2 rounded hover:bg-gray-400 items-center justify-center gap-2 disabled:opacity-50 min-h-[44px] transition-colors">{downloadingVideos.has(selectedVideo.public_id) ? <><Loader2 className="w-4 h-4 animate-spin" />Baixando...</> : <><Download className="w-4 h-4" />Baixar</>}</button>
-                    <button onClick={() => { shareVideoViaWebShare(selectedVideo); }} className="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700 flex items-center justify-center gap-2 min-h-[44px] transition-colors"><MessageCircle className="w-4 h-4" />WhatsApp</button>
+                    <button onClick={() => handleDownload(selectedAsset)} disabled={downloadingAssets.has(selectedAsset.public_id)} className="hidden md:flex bg-gray-300 text-black px-4 py-2 rounded hover:bg-gray-400 items-center justify-center gap-2 disabled:opacity-50 min-h-[44px] transition-colors">{downloadingAssets.has(selectedAsset.public_id) ? <><Loader2 className="w-4 h-4 animate-spin" />Baixando...</> : <><Download className="w-4 h-4" />Baixar</>}</button>
+                    <button onClick={() => { shareAssetViaWebShare(selectedAsset); }} className="bg-whatsapp hover:bg-whatsapp-hover text-white px-4 py-2 rounded flex items-center justify-center gap-2 min-h-[44px] transition-colors"><MessageCircle className="w-4 h-4" />Compartilhar</button>
                   </div>
                 </div>
               </div>
@@ -998,7 +1001,7 @@ const MainApp = () => {
   );
 };
 
-// Componente "roteador" de topo. Decide qual tela mostrar.
+// Componente "roteador" de topo.
 const App = () => {
   if (window.location.pathname === '/confirm') {
     return <ActionConfirmationView />;
