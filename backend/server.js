@@ -22,7 +22,8 @@ const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY;
 const allowedOrigins = [
   'http://localhost:3000',
   'http://localhost:3001',
-  'https://carboncontent.carlosmachado.tech'
+  'https://carboncontent.carlosmachado.tech',
+  'https://carbon-content-frontend.qqbqnt.easypanel.host'
 ];
 
 app.use(cors({

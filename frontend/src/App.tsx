@@ -74,7 +74,7 @@ class SupabaseClient {
     this.url = SUPABASE_URL;
     this.key = SUPABASE_ANON_KEY;
     this.token = localStorage.getItem('supabase_token');
-    this.backendUrl = window.location.hostname === 'localhost' ? 'http://localhost:5001' : 'https://api.carboncontent.carlosmachado.tech';
+    this.backendUrl = window.location.hostname === 'localhost' ? 'http://localhost:5001' : 'https://carbon-content-backend.qqbqnt.easypanel.host/';
   }
 
   private getHeaders(includeAuth: boolean = true): Record<string, string> {
@@ -168,7 +168,7 @@ class CloudinaryClient {
   private backendUrl: string;
 
   constructor() {
-    this.backendUrl = window.location.hostname === 'localhost' ? 'http://localhost:5001' : 'https://api.carboncontent.carlosmachado.tech';
+    this.backendUrl = window.location.hostname === 'localhost' ? 'http://localhost:5001' : 'https://carbon-content-backend.qqbqnt.easypanel.host/';
   }
 
   // Métodos renomeados para 'Assets'
