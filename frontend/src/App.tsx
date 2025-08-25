@@ -29,8 +29,8 @@ import {
 } from 'lucide-react';
 
 // --- CONFIGURAÇÕES GLOBAIS ---
-const SUPABASE_URL = 'https://sfkxgmxchziyfvdeybdl.supabase.co';
-const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNma3hnbXhjaHppeWZ2ZGV5YmRsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTE4OTEyMTAsImV4cCI6MjA2NzQ2NzIxMH0.F744lM-ovsBKDANBSzmGb3iMUCYWy4mrcGNDzuZs51E';
+const SUPABASE_URL = 'https://xxtxaxyvhchmbzkwvhpo.supabase.co';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inh4dHhheHl2aGNobWJ6a3d2aHBvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTUwMjAyODIsImV4cCI6MjA3MDU5NjI4Mn0.lUzUTNGUVv-Yi-QVsDqyeZdy_eXPPvapEAfiORlLmUE';
 const CLOUDINARY_CLOUD_NAME = 'carboncars';
 
 // --- INTERFACES TYPESCRIPT ---
