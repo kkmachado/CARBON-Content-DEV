@@ -851,7 +851,7 @@ const MainApp = () => {
       <header className="bg-black text-white shadow-lg sticky top-0 relative z-20">
         <img src="/bg_carbon.avif" alt="Fundo" className="absolute inset-0 w-full h-full md:object-center object-top object-cover z-0" />
         <div className="max-w-6xl mx-auto py-4 px-6 flex justify-between items-center z-20 relative">
-          <img src="/logo_carbon_content_v.png" alt="CARBON Content" className="md:h-6 h-4" />
+          <img src="/logo_carbon_content_h_white.png" alt="CARBON Content" className="md:h-6 h-4" />
           <div className="flex items-center gap-4">
               {isAdmin && currentView === 'library' && (
                   <button onClick={() => setCurrentView('users')} className="bg-gray-700 px-4 py-2 rounded hover:bg-gray-800 transition-colors flex items-center gap-2"><Users className="w-4 h-4" />Gerenciar</button>
