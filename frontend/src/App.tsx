@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import {
   Search,
   Download,
@@ -25,7 +25,9 @@ import {
   Trash2,
   Edit,
   Send,
-  Image as ImageIcon, // Adicionado ícone para imagem
+  Image as ImageIcon,
+  ArrowUp,
+  ArrowDown,
 } from 'lucide-react';
 
 // --- CONFIGURAÇÕES GLOBAIS ---
@@ -48,20 +50,21 @@ interface AdminUser extends User {
     created_at: string;
 }
 
-// Interface renomeada e atualizada para suportar imagens e vídeos
 interface CloudinaryAsset {
   public_id: string;
   display_name: string;
   format: string;
-  duration?: number; // Duração é opcional (para imagens)
+  duration?: number;
   bytes: number;
   secure_url: string;
   created_at: string;
   tags: string[];
-  resource_type: 'image' | 'video'; // Campo para diferenciar o tipo de mídia
+  resource_type: 'image' | 'video';
   context?: { alt?: string; custom?: { caption?: string; title?: string; }; [key: string]: any; };
   metadata?: { validade?: string; acesso_grupo_iesa?: string; legenda?: string; montadora?: string; [key: string]: any; };
 }
+
+type SortableUserKeys = 'name' | 'email' | 'role' | 'last_sign_in_at';
 
 // --- CLASSE DE API PARA O SUPABASE ---
 class SupabaseClient {
@@ -131,7 +134,6 @@ class SupabaseClient {
     }
   }
 
-  // --- MÉTODOS DE ADMIN (comunicação com o backend) ---
   async adminGetUsers(): Promise<AdminUser[]> {
       const response = await fetch(`${this.backendUrl}/api/admin/users`, { headers: this.getHeaders() });
       if (!response.ok) throw await this.handleResponseError(response);
@@ -139,14 +141,18 @@ class SupabaseClient {
       return data.users;
   }
 
-  async adminInviteUsers(emails: string[]): Promise<{ successful: string[], failed: { email: string, reason: string }[] }> {
-      const response = await fetch(`${this.backendUrl}/api/admin/invite`, { method: 'POST', headers: this.getHeaders(), body: JSON.stringify({ emails }) });
+  async adminInviteUsers(users: { email: string, name: string }[]): Promise<{ successful: string[], failed: { email: string, reason: string }[] }> {
+      const response = await fetch(`${this.backendUrl}/api/admin/invite`, { method: 'POST', headers: this.getHeaders(), body: JSON.stringify({ users }) });
       if (!response.ok) throw await this.handleResponseError(response);
       return await response.json();
   }
 
-  async adminUpdateUserRole(userId: string, role: 'admin' | 'normal'): Promise<any> {
-      const response = await fetch(`${this.backendUrl}/api/admin/users/${userId}`, { method: 'PUT', headers: this.getHeaders(), body: JSON.stringify({ role }) });
+  async adminUpdateUser(userId: string, data: { role?: 'admin' | 'normal', name?: string }): Promise<any> {
+      const response = await fetch(`${this.backendUrl}/api/admin/users/${userId}`, {
+          method: 'PUT',
+          headers: this.getHeaders(),
+          body: JSON.stringify(data)
+      });
       if (!response.ok) throw await this.handleResponseError(response);
       return await response.json();
   }
@@ -171,7 +177,6 @@ class CloudinaryClient {
     this.backendUrl = window.location.hostname === 'localhost' ? 'http://localhost:5001' : 'https://carbon-content-backend.qqbqnt.easypanel.host/';
   }
 
-  // Métodos renomeados para 'Assets'
   async searchAssets(searchTerm: string): Promise<CloudinaryAsset[]> {
     const response = await fetch(`${this.backendUrl}/api/media/search`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ searchTerm }) });
     if (!response.ok) {
@@ -209,7 +214,7 @@ class CloudinaryClient {
   }
 }
 
-// --- COMPONENTES DE AUTENTICAÇÃO (sem alterações) ---
+// --- COMPONENTES DE AUTENTICAÇÃO ---
 
 type AuthView = 'login' | 'forgot_password' | 'update_password' | 'password_recovery_sent';
 
@@ -374,154 +379,9 @@ const UpdatePasswordView: React.FC<{ onUpdate: (password: string) => Promise<voi
   );
 };
 
-// --- COMPONENTE DE GERENCIAMENTO DE USUÁRIOS (sem alterações) ---
-const UserManagement = () => {
-    const [users, setUsers] = useState<AdminUser[]>([]);
-    const [isLoading, setIsLoading] = useState(true);
-    const [error, setError] = useState('');
-    const [showInviteModal, setShowInviteModal] = useState(false);
-    const [showEditModal, setShowEditModal] = useState<AdminUser | null>(null);
-    const [showDeleteModal, setShowDeleteModal] = useState<AdminUser | null>(null);
-    const [showRecoveryModal, setShowRecoveryModal] = useState<AdminUser | null>(null);
-    const supabase = useRef(new SupabaseClient());
-
-    const fetchUsers = async () => {
-        setIsLoading(true);
-        setError('');
-        try {
-            const userList = await supabase.current.adminGetUsers();
-            setUsers(userList);
-        } catch (e: any) {
-            setError(e.message);
-        } finally {
-            setIsLoading(false);
-        }
-    };
-
-    useEffect(() => {
-        fetchUsers();
-    }, []);
-
-    const handleInvite = async (emails: string[]): Promise<{ successful: string[], failed: any[] }> => {
-        const results = await supabase.current.adminInviteUsers(emails);
-        if (results.successful.length > 0) {
-            fetchUsers();
-        }
-        return results;
-    };
-
-    const handleUpdateRole = async (userId: string, role: 'admin' | 'normal') => {
-        try {
-            await supabase.current.adminUpdateUserRole(userId, role);
-            setShowEditModal(null);
-            fetchUsers();
-        } catch (e: any) {
-            alert(`Erro ao atualizar perfil: ${e.message}`);
-        }
-    };
-    
-    const handleDelete = async (userId: string) => {
-        try {
-            await supabase.current.adminDeleteUser(userId);
-            setShowDeleteModal(null);
-            fetchUsers();
-        } catch (e: any) {
-            alert(`Erro ao deletar usuário: ${e.message}`);
-        }
-    };
-
-    const handleSendRecovery = async (email: string) => {
-        await supabase.current.adminSendRecovery(email);
-        setShowRecoveryModal(null);
-        alert('Link de recuperação de senha enviado com sucesso!');
-    };
-
-    return (
-        <div className="bg-white md:rounded-lg md:shadow-md p-6 mt-10">
-            <div className="flex justify-between items-center mb-6">
-                <h2 className="text-xl font-bold flex items-center">
-                    <Users className="w-5 h-5 mr-2" />
-                    Gerenciamento de Usuários
-                </h2>
-                <button 
-                    onClick={() => setShowInviteModal(true)} 
-                    className="bg-primary text-white px-4 py-2 rounded-md hover:bg-primary-hover flex items-center gap-2 transition-all"
-                >
-                    <PlusCircle className="w-5 h-5" />
-                    Convidar Usuário
-                </button>
-            </div>
-
-            {isLoading && (
-                <div className="text-center py-12">
-                    <Loader2 className="animate-spin h-12 w-12 text-primary mx-auto" />
-                </div>
-            )}
-
-            {error && (
-                <div className="bg-red-50 border border-red-200 rounded-lg p-4 text-center">
-                    <AlertCircle className="w-12 h-12 text-red-500 mx-auto mb-2" />
-                    <h3 className="font-bold text-red-800">Ocorreu um erro</h3>
-                    <p className="text-red-700 text-sm">{error}</p>
-                </div>
-            )}
-            
-            {!isLoading && !error && (
-                <div className="overflow-x-auto">
-                    <table className="min-w-full bg-white">
-                        <thead className="bg-gray-100">
-                            <tr>
-                                <th className="text-left py-3 px-4 font-semibold text-sm">Email</th>
-                                <th className="text-left py-3 px-4 font-semibold text-sm">Perfil</th>
-                                <th className="text-left py-3 px-4 font-semibold text-sm">Último Login</th>
-                                <th className="text-left py-3 px-4 font-semibold text-sm">Ações</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {users.map(user => {
-                                const role = user.user_metadata?.role || 'normal';
-                                return (
-                                    <tr key={user.id} className="border-b hover:bg-gray-50">
-                                        <td className="py-3 px-4">{user.email}</td>
-                                        <td className="py-3 px-4">
-                                            <span className={`px-2 py-1 text-xs rounded-full ${role === 'admin' ? 'bg-green-100 text-green-800' : 'bg-gray-200 text-gray-800'}`}>
-                                                {role === 'admin' ? 'Admin' : 'Normal'}
-                                            </span>
-                                        </td>
-                                        <td className="py-3 px-4">{user.last_sign_in_at ? new Date(user.last_sign_in_at).toLocaleString('pt-BR') : 'Nunca'}</td>
-                                        <td className="py-3 px-4 flex gap-3">
-                                            <div className="relative group">
-                                                <button onClick={() => setShowRecoveryModal(user)} className="text-gray-600 hover:text-gray-800"><Send className="w-5 h-5" /></button>
-                                                <span className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-max px-2 py-1 bg-gray-700 text-white text-xs rounded-md opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">Enviar Recuperação</span>
-                                            </div>
-                                            <div className="relative group">
-                                                <button onClick={() => setShowEditModal(user)} className="text-gray-600 hover:text-gray-800"><Edit className="w-5 h-5" /></button>
-                                                <span className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-max px-2 py-1 bg-gray-700 text-white text-xs rounded-md opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">Editar Perfil</span>
-                                            </div>
-                                            <div className="relative group">
-                                                <button onClick={() => setShowDeleteModal(user)} className="text-red-600 hover:text-red-800"><Trash2 className="w-5 h-5" /></button>
-                                                <span className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-max px-2 py-1 bg-gray-700 text-white text-xs rounded-md opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">Excluir Usuário</span>
-                                            </div>
-                                        </td>
-                                    </tr>
-                                )
-                            })}
-                        </tbody>
-                    </table>
-                </div>
-            )}
-
-            {showInviteModal && <InviteUserModal onInvite={handleInvite} onClose={() => setShowInviteModal(false)} />}
-            {showEditModal && <EditUserModal user={showEditModal} onUpdateRole={handleUpdateRole} onClose={() => setShowEditModal(null)} />}
-            {showDeleteModal && <DeleteUserModal user={showDeleteModal} onDelete={handleDelete} onClose={() => setShowDeleteModal(null)} />}
-            {showRecoveryModal && <RecoveryUserModal user={showRecoveryModal} onSend={handleSendRecovery} onClose={() => setShowRecoveryModal(null)} />}
-        </div>
-    );
-};
-
-// --- COMPONENTES DE MODAL (sem alterações) ---
-const InviteUserModal = ({ onInvite, onClose }: { onInvite: (emails: string[]) => Promise<{ successful: string[], failed: any[] }>, onClose: () => void }) => {
-    const [emails, setEmails] = useState('');
+// --- COMPONENTES DE MODAL ---
+const InviteUserModal = ({ onInvite, onClose }: { onInvite: (users: { email: string, name: string }[]) => Promise<{ successful: string[], failed: any[] }>, onClose: () => void }) => {
+    const [usersInput, setUsersInput] = useState('');
     const [isInviting, setIsInviting] = useState(false);
     const [results, setResults] = useState<{ successful: string[], failed: any[] } | null>(null);
 
@@ -529,14 +389,29 @@ const InviteUserModal = ({ onInvite, onClose }: { onInvite: (emails: string[]) =
         e.preventDefault();
         setIsInviting(true);
         setResults(null);
-        const emailList = emails.split(/[\n,;]+/).map(e => e.trim()).filter(Boolean);
-        if (emailList.length === 0) {
-            alert("Por favor, insira pelo menos um e-mail.");
+
+        const lines = usersInput.split('\n').filter(line => line.trim() !== '');
+        const userList = lines.map(line => {
+            const match = line.match(/(.*)<(.*)>/);
+            if (match && match[1] && match[2]) {
+                const name = match[1].trim();
+                const email = match[2].trim();
+                return { name, email };
+            }
+            const email = line.trim();
+            if (email) {
+              return { name: '', email };
+            }
+            return null;
+        }).filter((user): user is { email: string; name: string } => user !== null);
+
+        if (userList.length === 0) {
+            alert("Por favor, insira pelo menos um usuário válido no formato 'Nome <email@exemplo.com>' ou apenas 'email@exemplo.com'.");
             setIsInviting(false);
             return;
         }
         try {
-            const res = await onInvite(emailList);
+            const res = await onInvite(userList);
             setResults(res);
         } catch (e: any) {
             alert(`Erro ao processar a requisição: ${e.message}`);
@@ -547,7 +422,7 @@ const InviteUserModal = ({ onInvite, onClose }: { onInvite: (emails: string[]) =
 
     const handleClose = () => {
         setResults(null);
-        setEmails('');
+        setUsersInput('');
         onClose();
     };
 
@@ -558,15 +433,15 @@ const InviteUserModal = ({ onInvite, onClose }: { onInvite: (emails: string[]) =
                 <form onSubmit={handleSubmit}>
                     {!results ? (
                         <>
-                            <label htmlFor="emails-textarea" className="block text-sm font-medium text-gray-700 mb-2">
-                                E-mails dos usuários
+                            <label htmlFor="users-textarea" className="block text-sm font-medium text-gray-700 mb-2">
+                                Usuários
                             </label>
                             <textarea
-                                id="emails-textarea"
-                                value={emails}
-                                onChange={e => setEmails(e.target.value)}
+                                id="users-textarea"
+                                value={usersInput}
+                                onChange={e => setUsersInput(e.target.value)}
                                 className="w-full p-2 border rounded mb-4 h-40"
-                                placeholder="Digite um ou mais e-mails, separados por linha, vírgula ou ponto e vírgula."
+                                placeholder="Use o formato: Nome <email@exemplo.com> (um por linha)"
                                 required
                                 disabled={isInviting}
                             />
@@ -607,19 +482,39 @@ const InviteUserModal = ({ onInvite, onClose }: { onInvite: (emails: string[]) =
     );
 };
 
-const EditUserModal = ({ user, onUpdateRole, onClose }: { user: AdminUser, onUpdateRole: (userId: string, role: 'admin' | 'normal') => void, onClose: () => void }) => {
+const EditUserModal = ({ user, onUpdateUser, onClose }: { user: AdminUser, onUpdateUser: (userId: string, data: { role: 'admin' | 'normal', name: string }) => void, onClose: () => void }) => {
     const [role, setRole] = useState(user.user_metadata?.role || 'normal');
-    const handleSubmit = (e: React.FormEvent) => { e.preventDefault(); onUpdateRole(user.id, role as 'admin' | 'normal'); };
+    const [name, setName] = useState(user.user_metadata?.name || '');
+
+    const handleSubmit = (e: React.FormEvent) => {
+        e.preventDefault();
+        onUpdateUser(user.id, { role: role as 'admin' | 'normal', name });
+    };
+
     return (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
             <div className="bg-white rounded-lg p-6 w-full max-w-md">
-                <h3 className="text-lg font-bold mb-4">Editar Perfil de {user.email}</h3>
-                <form onSubmit={handleSubmit}>
-                    <select value={role} onChange={e => setRole(e.target.value)} className="w-full p-2 border rounded mb-4">
-                        <option value="normal">Normal</option>
-                        <option value="admin">Admin</option>
-                    </select>
-                    <div className="flex justify-end gap-2">
+                <h3 className="text-lg font-bold mb-2">Editar Usuário</h3>
+                <p className="text-sm text-gray-500 mb-4 break-all">{user.email}</p>
+                <form onSubmit={handleSubmit} className="space-y-4">
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Nome</label>
+                        <input
+                            type="text"
+                            value={name}
+                            onChange={e => setName(e.target.value)}
+                            className="w-full p-2 border rounded"
+                            placeholder="Nome completo do usuário"
+                        />
+                    </div>
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Perfil</label>
+                        <select value={role} onChange={e => setRole(e.target.value)} className="w-full p-2 border rounded">
+                            <option value="normal">Normal</option>
+                            <option value="admin">Admin</option>
+                        </select>
+                    </div>
+                    <div className="flex justify-end gap-2 pt-2">
                         <button type="button" onClick={onClose} className="bg-gray-200 hover:bg-gray-300 px-4 py-2 rounded transition-colors">Cancelar</button>
                         <button type="submit" className="bg-primary hover:bg-primary-hover transition-colors text-white px-4 py-2 rounded">Salvar</button>
                     </div>
@@ -675,10 +570,259 @@ const RecoveryUserModal = ({ user, onSend, onClose }: { user: AdminUser, onSend:
     );
 };
 
+// --- COMPONENTE DE GERENCIAMENTO DE USUÁRIOS ---
+const UserManagement = () => {
+    const [users, setUsers] = useState<AdminUser[]>([]);
+    const [isLoading, setIsLoading] = useState(true);
+    const [error, setError] = useState('');
+    const [showInviteModal, setShowInviteModal] = useState(false);
+    const [showEditModal, setShowEditModal] = useState<AdminUser | null>(null);
+    const [showDeleteModal, setShowDeleteModal] = useState<AdminUser | null>(null);
+    const [showRecoveryModal, setShowRecoveryModal] = useState<AdminUser | null>(null);
+    const [roleFilter, setRoleFilter] = useState<'all' | 'admin' | 'normal'>('all');
+    const [sortConfig, setSortConfig] = useState<{ key: SortableUserKeys, direction: 'asc' | 'desc' }>({ key: 'last_sign_in_at', direction: 'desc' });
+    const [userSearchTerm, setUserSearchTerm] = useState('');
+    const supabase = useRef(new SupabaseClient());
+
+    const fetchUsers = async () => {
+        setIsLoading(true);
+        setError('');
+        try {
+            const userList = await supabase.current.adminGetUsers();
+            setUsers(userList);
+        } catch (e: any) {
+            setError(e.message);
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
+    useEffect(() => {
+        fetchUsers();
+    }, []);
+
+    const handleInvite = async (users: { email: string, name: string }[]): Promise<{ successful: string[], failed: any[] }> => {
+        const results = await supabase.current.adminInviteUsers(users);
+        if (results.successful.length > 0) {
+            fetchUsers();
+        }
+        return results;
+    };
+
+    const handleUpdateUser = async (userId: string, data: { role: 'admin' | 'normal', name: string }) => {
+        try {
+            await supabase.current.adminUpdateUser(userId, data);
+            setShowEditModal(null);
+            fetchUsers();
+        } catch (e: any) {
+            alert(`Erro ao atualizar usuário: ${e.message}`);
+        }
+    };
+    
+    const handleDelete = async (userId: string) => {
+        try {
+            await supabase.current.adminDeleteUser(userId);
+            setShowDeleteModal(null);
+            fetchUsers();
+        } catch (e: any) {
+            alert(`Erro ao deletar usuário: ${e.message}`);
+        }
+    };
+
+    const handleSendRecovery = async (email: string) => {
+        await supabase.current.adminSendRecovery(email);
+        setShowRecoveryModal(null);
+        alert('Link de recuperação de senha enviado com sucesso!');
+    };
+
+    const handleSort = (key: SortableUserKeys) => {
+        let direction: 'asc' | 'desc' = 'asc';
+        if (sortConfig.key === key && sortConfig.direction === 'asc') {
+            direction = 'desc';
+        }
+        setSortConfig({ key, direction });
+    };
+
+    const filteredAndSortedUsers = useMemo(() => {
+        let sortableUsers = [...users];
+
+        // Search
+        if (userSearchTerm) {
+            const lowercasedTerm = userSearchTerm.toLowerCase();
+            sortableUsers = sortableUsers.filter(user =>
+                (user.user_metadata?.name?.toLowerCase() || '').includes(lowercasedTerm) ||
+                (user.email?.toLowerCase() || '').includes(lowercasedTerm)
+            );
+        }
+
+        // Filtering by role
+        sortableUsers = sortableUsers.filter(user => {
+            if (roleFilter === 'all') return true;
+            const role = user.user_metadata?.role || 'normal';
+            return role === roleFilter;
+        });
+
+        // Sorting
+        sortableUsers.sort((a, b) => {
+            let aValue: any = '';
+            let bValue: any = '';
+
+            switch (sortConfig.key) {
+                case 'name':
+                    aValue = a.user_metadata?.name?.toLowerCase() || '';
+                    bValue = b.user_metadata?.name?.toLowerCase() || '';
+                    break;
+                case 'email':
+                    aValue = a.email?.toLowerCase() || '';
+                    bValue = b.email?.toLowerCase() || '';
+                    break;
+                case 'role':
+                    aValue = a.user_metadata?.role?.toLowerCase() || 'normal';
+                    bValue = b.user_metadata?.role?.toLowerCase() || 'normal';
+                    break;
+                case 'last_sign_in_at':
+                    aValue = a.last_sign_in_at ? new Date(a.last_sign_in_at).getTime() : 0;
+                    bValue = b.last_sign_in_at ? new Date(b.last_sign_in_at).getTime() : 0;
+                    break;
+            }
+            
+            if (aValue < bValue) {
+                return sortConfig.direction === 'asc' ? -1 : 1;
+            }
+            if (aValue > bValue) {
+                return sortConfig.direction === 'asc' ? 1 : -1;
+            }
+            return 0;
+        });
+
+        return sortableUsers;
+    }, [users, roleFilter, sortConfig, userSearchTerm]);
+    
+    const SortableHeader: React.FC<{ columnKey: SortableUserKeys, title: string }> = ({ columnKey, title }) => (
+        <th className="text-left py-3 px-4 font-semibold text-sm">
+            <button onClick={() => handleSort(columnKey)} className="flex items-center gap-1 hover:text-gray-900">
+                {title}
+                {sortConfig.key === columnKey && (
+                    sortConfig.direction === 'asc' ? <ArrowUp className="w-4 h-4" /> : <ArrowDown className="w-4 h-4" />
+                )}
+            </button>
+        </th>
+    );
+
+    return (
+        <div className="bg-white md:rounded-lg md:shadow-md p-6 mt-10">
+            <div className="mb-6">
+                <h2 className="text-xl font-bold flex items-center mb-4">
+                    <Users className="w-5 h-5 mr-2" />
+                    Gerenciamento de Usuários
+                </h2>
+                <div className="flex flex-col md:flex-row justify-between items-center gap-4">
+                    <div className="relative w-full md:max-w-xs">
+                        <input
+                            type="text"
+                            placeholder="Buscar por nome ou email..."
+                            value={userSearchTerm}
+                            onChange={(e) => setUserSearchTerm(e.target.value)}
+                            className="w-full p-2 pl-10 border border-gray-300 rounded-md"
+                        />
+                        <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
+                    </div>
+                    <div className="flex flex-col sm:flex-row items-center gap-4 w-full sm:w-auto">
+                        <div className="w-full sm:w-48">
+                            <select
+                                id="roleFilter"
+                                value={roleFilter}
+                                onChange={(e) => setRoleFilter(e.target.value as 'all' | 'admin' | 'normal')}
+                                className="w-full p-2 border border-gray-300 rounded-md"
+                            >
+                                <option value="all">Todos os Perfis</option>
+                                <option value="admin">Admin</option>
+                                <option value="normal">Normal</option>
+                            </select>
+                        </div>
+                        <button
+                            onClick={() => setShowInviteModal(true)}
+                            className="bg-primary text-white px-4 py-2 rounded-md hover:bg-primary-hover flex items-center gap-2 transition-all w-full sm:w-auto justify-center"
+                        >
+                            <PlusCircle className="w-5 h-5" />
+                            Convidar
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            {isLoading && (
+                <div className="text-center py-12">
+                    <Loader2 className="animate-spin h-12 w-12 text-primary mx-auto" />
+                </div>
+            )}
+
+            {error && (
+                <div className="bg-red-50 border border-red-200 rounded-lg p-4 text-center">
+                    <AlertCircle className="w-12 h-12 text-red-500 mx-auto mb-2" />
+                    <h3 className="font-bold text-red-800">Ocorreu um erro</h3>
+                    <p className="text-red-700 text-sm">{error}</p>
+                </div>
+            )}
+            
+            {!isLoading && !error && (
+                <div className="overflow-x-auto">
+                    <table className="min-w-full bg-white">
+                        <thead className="bg-gray-100">
+                            <tr>
+                                <SortableHeader columnKey="name" title="Nome" />
+                                <SortableHeader columnKey="email" title="Email" />
+                                <SortableHeader columnKey="role" title="Perfil" />
+                                <SortableHeader columnKey="last_sign_in_at" title="Último Login" />
+                                <th className="text-left py-3 px-4 font-semibold text-sm">Ações</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {filteredAndSortedUsers.map(user => {
+                                const role = user.user_metadata?.role || 'normal';
+                                return (
+                                    <tr key={user.id} className="border-b hover:bg-gray-50">
+                                        <td className="py-3 px-4">{user.user_metadata?.name || <span className="text-gray-400">Não definido</span>}</td>
+                                        <td className="py-3 px-4">{user.email}</td>
+                                        <td className="py-3 px-4">
+                                            <span className={`px-2 py-1 text-xs rounded-full ${role === 'admin' ? 'bg-green-100 text-green-800' : 'bg-gray-200 text-gray-800'}`}>
+                                                {role === 'admin' ? 'Admin' : 'Normal'}
+                                            </span>
+                                        </td>
+                                        <td className="py-3 px-4">{user.last_sign_in_at ? new Date(user.last_sign_in_at).toLocaleString('pt-BR') : 'Nunca'}</td>
+                                        <td className="py-3 px-4 flex gap-3">
+                                            <div className="relative group">
+                                                <button onClick={() => setShowRecoveryModal(user)} className="text-gray-600 hover:text-gray-800"><Send className="w-5 h-5" /></button>
+                                                <span className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-max px-2 py-1 bg-gray-700 text-white text-xs rounded-md opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">Enviar Recuperação</span>
+                                            </div>
+                                            <div className="relative group">
+                                                <button onClick={() => setShowEditModal(user)} className="text-gray-600 hover:text-gray-800"><Edit className="w-5 h-5" /></button>
+                                                <span className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-max px-2 py-1 bg-gray-700 text-white text-xs rounded-md opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">Editar Usuário</span>
+                                            </div>
+                                            <div className="relative group">
+                                                <button onClick={() => setShowDeleteModal(user)} className="text-red-600 hover:text-red-800"><Trash2 className="w-5 h-5" /></button>
+                                                <span className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-max px-2 py-1 bg-gray-700 text-white text-xs rounded-md opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">Excluir Usuário</span>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                )
+                            })}
+                        </tbody>
+                    </table>
+                </div>
+            )}
+
+            {showInviteModal && <InviteUserModal onInvite={handleInvite} onClose={() => setShowInviteModal(false)} />}
+            {showEditModal && <EditUserModal user={showEditModal} onUpdateUser={handleUpdateUser} onClose={() => setShowEditModal(null)} />}
+            {showDeleteModal && <DeleteUserModal user={showDeleteModal} onDelete={handleDelete} onClose={() => setShowDeleteModal(null)} />}
+            {showRecoveryModal && <RecoveryUserModal user={showRecoveryModal} onSend={handleSendRecovery} onClose={() => setShowRecoveryModal(null)} />}
+        </div>
+    );
+};
+
 
 // --- COMPONENTES DA APLICAÇÃO PRINCIPAL ---
 
-// Componente para exibir a miniatura de uma mídia (imagem ou vídeo).
 const AssetThumbnail: React.FC<{ asset: CloudinaryAsset; onClick: () => void }> = ({ asset, onClick }) => {
   const [imageLoading, setImageLoading] = useState(true);
   const [imageError, setImageError] = useState(false);
@@ -687,7 +831,6 @@ const AssetThumbnail: React.FC<{ asset: CloudinaryAsset; onClick: () => void }> 
     if (asset.resource_type === 'video') {
       return `https://res.cloudinary.com/${CLOUDINARY_CLOUD_NAME}/video/upload/w_${width},h_${height},c_fill,q_auto,f_auto,so_0/${asset.public_id}.jpg`;
     }
-    // Para imagens, a URL de transformação é diferente
     return `https://res.cloudinary.com/${CLOUDINARY_CLOUD_NAME}/image/upload/w_${width},h_${height},c_fill,q_auto,f_auto/${asset.public_id}.${asset.format}`;
   };
 
@@ -741,15 +884,12 @@ const AssetThumbnail: React.FC<{ asset: CloudinaryAsset; onClick: () => void }> 
   );
 };
 
-
-// Componente principal que gerencia o estado da aplicação.
 const MainApp = () => {
-  // --- ESTADOS (States) ---
   const [user, setUser] = useState<User | null>(null);
-  const [assets, setAssets] = useState<CloudinaryAsset[]>([]); // Renomeado
+  const [assets, setAssets] = useState<CloudinaryAsset[]>([]);
   const [loading, setLoading] = useState(false);
-  const [selectedAsset, setSelectedAsset] = useState<CloudinaryAsset | null>(null); // Renomeado
-  const [downloadingAssets, setDownloadingAssets] = useState<Set<string>>(new Set()); // Renomeado
+  const [selectedAsset, setSelectedAsset] = useState<CloudinaryAsset | null>(null);
+  const [downloadingAssets, setDownloadingAssets] = useState<Set<string>>(new Set());
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedMontadora, setSelectedMontadora] = useState('');
   const [selectedTag, setSelectedTag] = useState('');
@@ -767,7 +907,6 @@ const MainApp = () => {
   const [recoveryEmail, setRecoveryEmail] = useState('');
   const [currentView, setCurrentView] = useState<'library' | 'users'>('library');
 
-  // --- EFEITOS (UseEffects) ---
   useEffect(() => {
     const storedUser = supabase.current.getUser();
     if (storedUser) {
@@ -811,7 +950,6 @@ const MainApp = () => {
     if (user) executeSearch();
   }, [user, appliedSearchTerm, appliedSelectedMontadora, appliedSelectedTag]);
 
-  // --- FUNÇÕES DE LÓGICA ---
   const extractMontadoras = (assets: CloudinaryAsset[]): string[] => { const montadoras = new Set<string>(); assets.forEach(asset => { const montadora = asset.metadata?.montadora; if (montadora && montadora.trim()) montadoras.add(montadora.trim()); }); return Array.from(montadoras).sort(); };
   const extractTags = (assets: CloudinaryAsset[]): string[] => { const tags = new Set<string>(); assets.forEach(asset => { if (Array.isArray(asset.tags)) { asset.tags.forEach(tag => { if (tag && tag.trim()) tags.add(tag.trim()); }); } }); return Array.from(tags).sort(); };
   const filterAssetsByMontadora = (assets: CloudinaryAsset[], montadora: string): CloudinaryAsset[] => { if (!montadora) return assets; return assets.filter(asset => asset.metadata?.montadora?.toLowerCase().includes(montadora.toLowerCase())); };
@@ -852,14 +990,14 @@ const MainApp = () => {
         <img src="/bg_carbon.avif" alt="Fundo" className="absolute inset-0 w-full h-full md:object-center object-top object-cover z-0" />
         <div className="max-w-6xl mx-auto py-4 px-6 flex justify-between items-center z-20 relative">
           <img src="/logo_carbon_content_h_white.png" alt="CARBON Content" className="md:h-6 h-4" />
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-2 m:gap-4">
               {isAdmin && currentView === 'library' && (
-                  <button onClick={() => setCurrentView('users')} className="bg-gray-700 px-4 py-2 rounded hover:bg-gray-800 transition-colors flex items-center gap-2"><Users className="w-4 h-4" />Gerenciar</button>
+                  <button onClick={() => setCurrentView('users')} className="bg-gray-700 px-4 py-3 md:py-2 rounded hover:bg-gray-800 transition-colors flex items-center gap-2"><Users className="w-4 h-4" /><span className="hidden md:flex">Gerenciar</span></button>
               )}
               {isAdmin && currentView === 'users' && (
-                  <button onClick={() => setCurrentView('library')} className="bg-gray-700 px-4 py-2 rounded hover:bg-gray-800 transition-colors flex items-center gap-2"><Library className="w-4 h-4" />Biblioteca</button>
+                  <button onClick={() => setCurrentView('library')} className="bg-gray-700 px-4 py-3 md:py-2 rounded hover:bg-gray-800 transition-colors flex items-center gap-2"><Library className="w-4 h-4" /><span className="hidden md:flex">Biblioteca</span></button>
               )}
-            <button onClick={handleLogout} className="bg-red-700 px-4 py-2 rounded hover:bg-red-800 transition-colors flex items-center gap-2"><LogOut className="w-4 h-4" />Sair</button>
+            <button onClick={handleLogout} className="bg-red-700 px-4 py-3 md:py-2 rounded hover:bg-red-800 transition-colors flex items-center gap-2"><LogOut className="w-4 h-4" /><span className="hidden md:flex">Sair</span></button>
           </div>
         </div>
       </header>
@@ -1001,7 +1139,6 @@ const MainApp = () => {
   );
 };
 
-// Componente "roteador" de topo.
 const App = () => {
   if (window.location.pathname === '/confirm') {
     return <ActionConfirmationView />;

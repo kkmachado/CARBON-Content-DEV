@@ -56,10 +56,8 @@ function getCurrentDate() {
   return `${year}-${month}-${day}`;
 }
 
-// Função de busca atualizada para incluir imagens
 function generateSearchExpression(additionalTerms = '') {
   const currentDate = getCurrentDate();
-  // Alterado para buscar videos OU imagens
   let baseExpression = `(resource_type:video OR resource_type:image) AND (asset_folder:vendedores/*) AND (metadata.validade>${currentDate})`;
   if (additionalTerms && additionalTerms.trim()) {
     baseExpression = `${additionalTerms.trim()} AND ${baseExpression}`;
@@ -67,7 +65,6 @@ function generateSearchExpression(additionalTerms = '') {
   return baseExpression;
 }
 
-// Rota renomeada de /api/videos para /api/media
 app.get('/api/media', async (req, res) => {
   try {
     const expression = generateSearchExpression();
@@ -81,7 +78,6 @@ app.get('/api/media', async (req, res) => {
   }
 });
 
-// Rota renomeada de /api/videos/search para /api/media/search
 app.post('/api/media/search', async (req, res) => {
   try {
     const { searchTerm } = req.body;
@@ -104,7 +100,6 @@ const checkAdminConfig = (req, res, next) => {
         const missingKeys = [];
         if (!SUPABASE_SERVICE_KEY) missingKeys.push('SUPABASE_SERVICE_ROLE_KEY');
         if (!SUPABASE_ANON_KEY) missingKeys.push('SUPABASE_ANON_KEY');
-
         const errorMessage = `Erro de configuração no servidor. As seguintes chaves não foram encontradas no arquivo .env do backend: ${missingKeys.join(', ')}`;
         console.error(`ERRO GRAVE: ${errorMessage}`);
         return res.status(500).json({ error: 'Erro de Configuração', details: errorMessage });
@@ -131,17 +126,29 @@ app.get('/api/admin/users', checkAdminConfig, async (req, res) => {
 });
 
 app.post('/api/admin/invite', checkAdminConfig, async (req, res) => {
-    const { emails } = req.body;
+    const { users } = req.body;
 
-    if (!emails || !Array.isArray(emails) || emails.length === 0) {
-        return res.status(400).json({ error: 'A lista de e-mails (emails) é obrigatória.' });
+    if (!users || !Array.isArray(users) || users.length === 0) {
+        return res.status(400).json({ error: 'A lista de usuários (users) é obrigatória.' });
     }
 
-    const invitePromises = emails.map(email =>
-        fetch(`${SUPABASE_URL}/auth/v1/invite`, {
+    const invitePromises = users.map(user => {
+        const { email, name } = user;
+        if (!email) {
+            return Promise.resolve({ email: 'Inválido', status: 'rejected', reason: 'Email não fornecido.' });
+        }
+
+        const invitePayload = {
+            email: email.trim(),
+            data: {
+                name: name || ''
+            }
+        };
+
+        return fetch(`${SUPABASE_URL}/auth/v1/invite`, {
             method: 'POST',
             headers: getAdminHeaders(),
-            body: JSON.stringify({ email: email.trim() })
+            body: JSON.stringify(invitePayload)
         }).then(async response => {
             if (response.ok) {
                 return { email, status: 'fulfilled' };
@@ -155,8 +162,8 @@ app.post('/api/admin/invite', checkAdminConfig, async (req, res) => {
                 reason = errorText;
             }
             return { email, status: 'rejected', reason };
-        })
-    );
+        });
+    });
 
     const results = await Promise.all(invitePromises);
 
@@ -183,10 +190,7 @@ app.post('/api/admin/recover', checkAdminConfig, async (req, res) => {
     try {
         const response = await fetch(`${SUPABASE_URL}/auth/v1/recover`, {
             method: 'POST',
-            headers: {
-                'apikey': SUPABASE_ANON_KEY,
-                'Content-Type': 'application/json'
-            },
+            headers: { 'apikey': SUPABASE_ANON_KEY, 'Content-Type': 'application/json' },
             body: JSON.stringify({ email })
         });
 
@@ -205,11 +209,26 @@ app.post('/api/admin/recover', checkAdminConfig, async (req, res) => {
 
 app.put('/api/admin/users/:id', checkAdminConfig, async (req, res) => {
     const { id } = req.params;
-    const { role } = req.body;
-    if (!role) return res.status(400).json({ error: 'O novo perfil (role) é obrigatório.' });
+    const { role, name } = req.body;
+
+    const user_metadata = {};
+    if (role) {
+        user_metadata.role = role;
+    }
+    if (typeof name === 'string') {
+        user_metadata.name = name;
+    }
+
+    if (Object.keys(user_metadata).length === 0) {
+        return res.status(400).json({ error: 'Nenhum dado para atualizar. Forneça "name" e/ou "role".' });
+    }
 
     try {
-        const response = await fetch(`${SUPABASE_URL}/auth/v1/admin/users/${id}`, { method: 'PUT', headers: getAdminHeaders(), body: JSON.stringify({ user_metadata: { role: role } }) });
+        const response = await fetch(`${SUPABASE_URL}/auth/v1/admin/users/${id}`, {
+            method: 'PUT',
+            headers: getAdminHeaders(),
+            body: JSON.stringify({ user_metadata })
+        });
         const data = await response.json();
         if (!response.ok) throw data;
 
