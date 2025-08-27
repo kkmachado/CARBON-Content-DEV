@@ -29,11 +29,34 @@ import {
   ArrowUp,
   ArrowDown,
 } from 'lucide-react';
+import posthog from 'posthog-js';
 
 // --- CONFIGURAÇÕES GLOBAIS ---
 const SUPABASE_URL = 'https://xxtxaxyvhchmbzkwvhpo.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inh4dHhheHl2aGNobWJ6a3d2aHBvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTUwMjAyODIsImV4cCI6MjA3MDU5NjI4Mn0.lUzUTNGUVv-Yi-QVsDqyeZdy_eXPPvapEAfiORlLmUE';
 const CLOUDINARY_CLOUD_NAME = 'carboncars';
+
+// --- CONFIGURAÇÃO DO POSTHOG ---
+// Use variáveis de ambiente para configurar o PostHog em tempo de build
+const POSTHOG_KEY = process.env.REACT_APP_POSTHOG_KEY || '';
+const POSTHOG_HOST = process.env.REACT_APP_POSTHOG_HOST || 'https://us.i.posthog.com'; // ou https://eu.i.posthog.com
+
+if (typeof window !== 'undefined' && POSTHOG_KEY) {
+  posthog.init(POSTHOG_KEY, {
+    api_host: POSTHOG_HOST,
+    capture_pageview: false, // Pageviews são capturados manualmente no componente
+    session_recording: {},
+  });
+  // Exponha para facilitar debug no console do navegador
+  // @ts-ignore
+  window.posthog = posthog;
+  if (process.env.REACT_APP_POSTHOG_DEBUG === 'true') {
+    posthog.debug(true);
+  }
+} else if (typeof window !== 'undefined') {
+  // Evita silêncio total quando a chave não está definida
+  console.warn('PostHog não inicializado: defina REACT_APP_POSTHOG_KEY no ambiente.');
+}
 
 // --- INTERFACES TYPESCRIPT ---
 interface User {
@@ -601,10 +624,14 @@ const UserManagement = () => {
         fetchUsers();
     }, []);
 
-    const handleInvite = async (users: { email: string, name: string }[]): Promise<{ successful: string[], failed: any[] }> => {
-        const results = await supabase.current.adminInviteUsers(users);
+    const handleInvite = async (usersToInvite: { email: string, name: string }[]): Promise<{ successful: string[], failed: any[] }> => {
+        const results = await supabase.current.adminInviteUsers(usersToInvite);
         if (results.successful.length > 0) {
+            posthog?.capture('admin_users_invited', { count: results.successful.length });
             fetchUsers();
+        }
+        if (results.failed.length > 0) {
+            posthog?.capture('admin_users_invite_failed', { count: results.failed.length });
         }
         return results;
     };
@@ -612,6 +639,7 @@ const UserManagement = () => {
     const handleUpdateUser = async (userId: string, data: { role: 'admin' | 'normal', name: string }) => {
         try {
             await supabase.current.adminUpdateUser(userId, data);
+            posthog?.capture('admin_user_updated', { user_id: userId, updated_role: data.role });
             setShowEditModal(null);
             fetchUsers();
         } catch (e: any) {
@@ -622,6 +650,7 @@ const UserManagement = () => {
     const handleDelete = async (userId: string) => {
         try {
             await supabase.current.adminDeleteUser(userId);
+            posthog?.capture('admin_user_deleted', { user_id: userId });
             setShowDeleteModal(null);
             fetchUsers();
         } catch (e: any) {
@@ -631,6 +660,7 @@ const UserManagement = () => {
 
     const handleSendRecovery = async (email: string) => {
         await supabase.current.adminSendRecovery(email);
+        posthog?.capture('admin_user_recovery_sent', { email: email });
         setShowRecoveryModal(null);
         alert('Link de recuperação de senha enviado com sucesso!');
     };
@@ -711,7 +741,7 @@ const UserManagement = () => {
 
     return (
         <div className="bg-white md:rounded-lg md:shadow-md p-6 mt-10">
-            <div className="mb-6">
+             <div className="mb-6">
                 <h2 className="text-xl font-bold flex items-center mb-4">
                     <Users className="w-5 h-5 mr-2" />
                     Gerenciamento de Usuários
@@ -823,9 +853,28 @@ const UserManagement = () => {
 
 // --- COMPONENTES DA APLICAÇÃO PRINCIPAL ---
 
+const PostHogPageViewTracker = () => {
+    useEffect(() => {
+        if (posthog) {
+            posthog.capture('$pageview');
+        }
+    }, []);
+    return null;
+};
+
+
 const AssetThumbnail: React.FC<{ asset: CloudinaryAsset; onClick: () => void }> = ({ asset, onClick }) => {
   const [imageLoading, setImageLoading] = useState(true);
   const [imageError, setImageError] = useState(false);
+
+  const handleThumbnailClick = () => {
+    posthog?.capture('media_asset_viewed', {
+        asset_id: asset.public_id,
+        asset_type: asset.resource_type,
+        display_name: asset.display_name,
+    });
+    onClick();
+  };
 
   const getThumbnailUrl = (width: number = 400, height: number = 225) => {
     if (asset.resource_type === 'video') {
@@ -850,7 +899,7 @@ const AssetThumbnail: React.FC<{ asset: CloudinaryAsset; onClick: () => void }> 
   };
 
   return (
-    <div className="relative cursor-pointer group" onClick={onClick}>
+    <div className="relative cursor-pointer group" onClick={handleThumbnailClick}>
       {imageLoading && (
         <div className="w-full h-48 bg-gradient-to-br from-gray-100 to-gray-200 flex items-center justify-center animate-pulse">
           {asset.resource_type === 'video' ? <Film className="w-8 h-8 text-gray-400" /> : <ImageIcon className="w-8 h-8 text-gray-400" />}
@@ -911,7 +960,6 @@ const MainApp = () => {
     const storedUser = supabase.current.getUser();
     if (storedUser) {
       setUser(storedUser);
-      return;
     }
     const handleAuthRedirect = () => {
       const hashParams = new URLSearchParams(window.location.hash.substring(1));
@@ -936,8 +984,14 @@ const MainApp = () => {
   }, []);
 
   useEffect(() => {
-    if (user) {
-      loadAllAssets();
+    if (user && posthog) {
+        posthog.identify(user.id, {
+            email: user.email,
+            name: user.user_metadata?.name,
+        });
+        loadAllAssets();
+    } else if (!user && posthog) {
+        posthog.reset();
     }
   }, [user]);
 
@@ -959,15 +1013,132 @@ const MainApp = () => {
   const filteredAssets = getFilteredAssets();
   const loadAllAssets = async () => { if (!user) return; setLoading(true); try { const cloudinaryAssets = await cloudinary.current.getAllAssets(); setAssets(cloudinaryAssets); } catch (error: any) { console.error("Erro ao carregar biblioteca:", error); setAssets([]); } finally { setLoading(false); } };
   const executeSearch = async () => { if (!user) return; setLoading(true); try { if (!appliedSearchTerm.trim() && !appliedSelectedMontadora && !appliedSelectedTag) { await loadAllAssets(); return; } const cloudinaryAssets = await cloudinary.current.searchAssets(appliedSearchTerm); let filteredResults = filterAssetsByMontadora(cloudinaryAssets, appliedSelectedMontadora); filteredResults = filterAssetsByTag(filteredResults, appliedSelectedTag); setAssets(filteredResults); } catch (error: any) { console.error("Erro na busca:", error); setAssets([]); } finally { setLoading(false); } };
-  const handleSearchButtonClick = () => setAppliedSearchTerm(searchTerm);
+  const handleSearchButtonClick = () => {
+      posthog?.capture('media_searched', {
+          search_term: searchTerm,
+          filters: {
+              montadora: appliedSelectedMontadora,
+              tag: appliedSelectedTag,
+          }
+      });
+      setAppliedSearchTerm(searchTerm);
+  };
   const handleSearchInputKeyPress = (e: React.KeyboardEvent<HTMLInputElement>) => { if (e.key === 'Enter') handleSearchButtonClick(); };
-  const clearAllFilters = () => { setSearchTerm(''); setSelectedMontadora(''); setSelectedTag(''); setAppliedSearchTerm(''); setAppliedSelectedMontadora(''); setAppliedSelectedTag(''); };
-  const handleLogin = async (email: string, pass: string) => { setAuthError(''); setIsLoggingIn(true); try { const { user } = await supabase.current.signIn(email, pass); setUser(user); } catch (error: any) { let errorMessage = 'Erro de autenticação'; if (error && error.message) { const msg = error.message.toLowerCase(); if (msg.includes('invalid login credentials')) errorMessage = 'Email ou senha incorretos.'; else if (msg.includes('user not found')) errorMessage = 'Usuário não encontrado.'; else if (msg.includes('rate limit')) errorMessage = 'Muitas tentativas.'; else errorMessage = error.message; } setAuthError(errorMessage); } finally { setIsLoggingIn(false); } };
-  const handleLogout = async () => { await supabase.current.signOut(); setUser(null); setAssets([]); window.history.replaceState(null, '', window.location.pathname); };
-  const handlePasswordRecovery = async (email: string) => { setAuthError(''); setIsLoggingIn(true); try { await supabase.current.sendPasswordResetEmail(email); setRecoveryEmail(email); setAuthView('password_recovery_sent'); } catch (error: any) { setAuthError(error.message || 'Não foi possível enviar o email.'); } finally { setIsLoggingIn(false); } };
-  const handleUpdatePassword = async (password: string) => { if (!recoveryToken) { setAuthError("Token inválido."); return; } if (password.length < 6) { setAuthError("A senha deve ter no mínimo 6 caracteres."); return; } setAuthError(''); setIsLoggingIn(true); try { await supabase.current.updateUserPassword(recoveryToken, password); alert("Senha definida com sucesso! Agora você pode fazer o login."); setAuthView('login'); window.history.replaceState(null, '', window.location.pathname); } catch (error: any) { setAuthError(error.message || 'Não foi possível atualizar a senha.'); } finally { setIsLoggingIn(false); } };
-  const handleDownload = async (asset: CloudinaryAsset) => { setDownloadingAssets(prev => new Set(prev).add(asset.public_id)); try { const cleanTitle = (asset.context?.custom?.title || asset.display_name || asset.public_id).replace(/[^a-zA-Z0-9\s\-_]/g, ''); const fileName = `${cleanTitle}.${asset.format}`; const response = await fetch(asset.secure_url); const blob = await response.blob(); const blobUrl = window.URL.createObjectURL(blob); const link = document.createElement('a'); link.href = blobUrl; link.download = fileName; document.body.appendChild(link); link.click(); document.body.removeChild(link); window.URL.revokeObjectURL(blobUrl); } catch (error) { console.error('Erro no download:', error); window.open(asset.secure_url, '_blank'); } finally { setTimeout(() => { setDownloadingAssets(prev => { const newSet = new Set(prev); newSet.delete(asset.public_id); return newSet; }); }, 2000); } };
-  const shareAssetViaWebShare = async (asset: CloudinaryAsset) => { try { const response = await fetch(asset.secure_url); if (!response.ok) throw new Error('Erro ao baixar mídia'); const blob = await response.blob(); const fileName = `${asset.display_name}.${asset.format}`; const mimeType = asset.resource_type === 'video' ? `video/${asset.format}` : `image/${asset.format}`; const file = new File([blob], fileName, { type: mimeType }); if (navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) { await navigator.share({ title: asset.display_name, text: asset.context?.alt || '', files: [file] }); } } catch (error) { /* Falha silenciosa */ } };
+  const clearAllFilters = () => {
+      posthog?.capture('media_filters_cleared');
+      setSearchTerm(''); setSelectedMontadora(''); setSelectedTag(''); setAppliedSearchTerm(''); setAppliedSelectedMontadora(''); setAppliedSelectedTag('');
+  };
+  const handleLogin = async (email: string, pass: string) => {
+      setAuthError('');
+      setIsLoggingIn(true);
+      try {
+          const { user } = await supabase.current.signIn(email, pass);
+          posthog?.capture('user_login_success');
+          setUser(user);
+      } catch (error: any) {
+          let errorMessage = 'Erro de autenticação';
+          if (error && error.message) {
+              const msg = error.message.toLowerCase();
+              if (msg.includes('invalid login credentials')) errorMessage = 'Email ou senha incorretos.';
+              else if (msg.includes('user not found')) errorMessage = 'Usuário não encontrado.';
+              else if (msg.includes('rate limit')) errorMessage = 'Muitas tentativas.';
+              else errorMessage = error.message;
+          }
+          posthog?.capture('user_login_failed', { error: errorMessage });
+          setAuthError(errorMessage);
+      } finally {
+          setIsLoggingIn(false);
+      }
+  };
+  const handleLogout = async () => {
+      posthog?.capture('user_logout');
+      await supabase.current.signOut();
+      setUser(null);
+      setAssets([]);
+      window.history.replaceState(null, '', window.location.pathname);
+  };
+  const handlePasswordRecovery = async (email: string) => {
+      setAuthError('');
+      setIsLoggingIn(true);
+      try {
+          await supabase.current.sendPasswordResetEmail(email);
+          posthog?.capture('user_password_recovery_requested', { email });
+          setRecoveryEmail(email);
+          setAuthView('password_recovery_sent');
+      } catch (error: any) {
+          setAuthError(error.message || 'Não foi possível enviar o email.');
+      } finally {
+          setIsLoggingIn(false);
+      }
+  };
+  const handleUpdatePassword = async (password: string) => {
+      if (!recoveryToken) { setAuthError("Token inválido."); return; }
+      if (password.length < 6) { setAuthError("A senha deve ter no mínimo 6 caracteres."); return; }
+      setAuthError('');
+      setIsLoggingIn(true);
+      try {
+          await supabase.current.updateUserPassword(recoveryToken, password);
+          posthog?.capture('user_password_updated');
+          alert("Senha definida com sucesso! Agora você pode fazer o login.");
+          setAuthView('login');
+          window.history.replaceState(null, '', window.location.pathname);
+      } catch (error: any) {
+          setAuthError(error.message || 'Não foi possível atualizar a senha.');
+      } finally {
+          setIsLoggingIn(false);
+      }
+  };
+  const handleDownload = async (asset: CloudinaryAsset) => {
+      setDownloadingAssets(prev => new Set(prev).add(asset.public_id));
+      posthog?.capture('media_asset_downloaded', {
+          asset_id: asset.public_id,
+          asset_type: asset.resource_type,
+          file_name: `${asset.context?.custom?.title || asset.display_name || asset.public_id}.${asset.format}`
+      });
+      try {
+          const cleanTitle = (asset.context?.custom?.title || asset.display_name || asset.public_id).replace(/[^a-zA-Z0-9\s\-_]/g, '');
+          const fileName = `${cleanTitle}.${asset.format}`;
+          const response = await fetch(asset.secure_url);
+          const blob = await response.blob();
+          const blobUrl = window.URL.createObjectURL(blob);
+          const link = document.createElement('a');
+          link.href = blobUrl;
+          link.download = fileName;
+          document.body.appendChild(link);
+          link.click();
+          document.body.removeChild(link);
+          window.URL.revokeObjectURL(blobUrl);
+      } catch (error) {
+          console.error('Erro no download:', error);
+          window.open(asset.secure_url, '_blank');
+      } finally {
+          setTimeout(() => {
+              setDownloadingAssets(prev => {
+                  const newSet = new Set(prev);
+                  newSet.delete(asset.public_id);
+                  return newSet;
+              });
+          }, 2000);
+      }
+  };
+  const shareAssetViaWebShare = async (asset: CloudinaryAsset) => {
+      posthog?.capture('media_asset_shared', {
+          asset_id: asset.public_id,
+          asset_type: asset.resource_type,
+          share_method: 'web_share_api'
+      });
+      try {
+          const response = await fetch(asset.secure_url);
+          if (!response.ok) throw new Error('Erro ao baixar mídia');
+          const blob = await response.blob();
+          const fileName = `${asset.display_name}.${asset.format}`;
+          const mimeType = asset.resource_type === 'video' ? `video/${asset.format}` : `image/${asset.format}`;
+          const file = new File([blob], fileName, { type: mimeType });
+          if (navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
+              await navigator.share({ title: asset.display_name, text: asset.context?.alt || '', files: [file] });
+          }
+      } catch (error) { /* Falha silenciosa */ }
+  };
   
   const isAdmin = user?.user_metadata?.role === 'admin';
 
@@ -986,18 +1157,19 @@ const MainApp = () => {
 
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col">
+      <PostHogPageViewTracker />
       <header className="bg-black text-white shadow-lg sticky top-0 relative z-20">
         <img src="/bg_carbon.avif" alt="Fundo" className="absolute inset-0 w-full h-full md:object-center object-top object-cover z-0" />
         <div className="max-w-6xl mx-auto py-4 px-6 flex justify-between items-center z-20 relative">
           <img src="/logo_carbon_content_h_white.png" alt="CARBON Content" className="md:h-6 h-4" />
-          <div className="flex items-center gap-2 m:gap-4">
+          <div className="flex items-center gap-4">
               {isAdmin && currentView === 'library' && (
-                  <button onClick={() => setCurrentView('users')} className="bg-gray-700 px-4 py-3 md:py-2 rounded hover:bg-gray-800 transition-colors flex items-center gap-2"><Users className="w-4 h-4" /><span className="hidden md:flex">Gerenciar</span></button>
+                  <button onClick={() => { posthog?.capture('admin_viewed_user_management'); setCurrentView('users'); }} className="bg-gray-700 px-4 py-2 rounded hover:bg-gray-800 transition-colors flex items-center gap-2"><Users className="w-4 h-4" />Gerenciar</button>
               )}
               {isAdmin && currentView === 'users' && (
-                  <button onClick={() => setCurrentView('library')} className="bg-gray-700 px-4 py-3 md:py-2 rounded hover:bg-gray-800 transition-colors flex items-center gap-2"><Library className="w-4 h-4" /><span className="hidden md:flex">Biblioteca</span></button>
+                  <button onClick={() => setCurrentView('library')} className="bg-gray-700 px-4 py-2 rounded hover:bg-gray-800 transition-colors flex items-center gap-2"><Library className="w-4 h-4" />Biblioteca</button>
               )}
-            <button onClick={handleLogout} className="bg-red-700 px-4 py-3 md:py-2 rounded hover:bg-red-800 transition-colors flex items-center gap-2"><LogOut className="w-4 h-4" /><span className="hidden md:flex">Sair</span></button>
+            <button onClick={handleLogout} className="bg-red-700 px-4 py-2 rounded hover:bg-red-800 transition-colors flex items-center gap-2"><LogOut className="w-4 h-4" />Sair</button>
           </div>
         </div>
       </header>
@@ -1021,7 +1193,7 @@ const MainApp = () => {
                                 <div>
                                     <label className="block text-sm font-medium mb-2">Filtrar por montadora</label>
                                     <div className="relative">
-                                        <select value={selectedMontadora} onChange={(e) => { setSelectedMontadora(e.target.value); setAppliedSelectedMontadora(e.target.value); }} className="w-full p-3 pr-10 border border-gray-300 rounded-md appearance-none bg-white">
+                                        <select value={selectedMontadora} onChange={(e) => { setSelectedMontadora(e.target.value); setAppliedSelectedMontadora(e.target.value); posthog?.capture('media_filter_changed', { filter: 'montadora', value: e.target.value }); }} className="w-full p-3 pr-10 border border-gray-300 rounded-md appearance-none bg-white">
                                             <option value="">Todas as montadoras</option>
                                             {availableMontadoras.map((montadora) => <option key={montadora} value={montadora}>{montadora.toUpperCase()}</option>)}
                                         </select>
@@ -1032,7 +1204,7 @@ const MainApp = () => {
                                 <div>
                                     <label className="block text-sm font-medium mb-2">Filtrar por tag</label>
                                     <div className="relative">
-                                        <select value={selectedTag} onChange={(e) => { setSelectedTag(e.target.value); setAppliedSelectedTag(e.target.value); }} className="w-full p-3 pr-10 border border-gray-300 rounded-md appearance-none bg-white">
+                                        <select value={selectedTag} onChange={(e) => { setSelectedTag(e.target.value); setAppliedSelectedTag(e.target.value); posthog?.capture('media_filter_changed', { filter: 'tag', value: e.target.value }); }} className="w-full p-3 pr-10 border border-gray-300 rounded-md appearance-none bg-white">
                                             <option value="">Todas as tags</option>
                                             {availableTags.map((tag) => <option key={tag} value={tag}>{tag}</option>)}
                                         </select>
@@ -1143,6 +1315,7 @@ const App = () => {
   if (window.location.pathname === '/confirm') {
     return <ActionConfirmationView />;
   }
+  
   return <MainApp />;
 };
 
