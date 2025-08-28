@@ -1162,14 +1162,14 @@ const MainApp = () => {
         <img src="/bg_carbon.avif" alt="Fundo" className="absolute inset-0 w-full h-full md:object-center object-top object-cover z-0" />
         <div className="max-w-6xl mx-auto py-4 px-6 flex justify-between items-center z-20 relative">
           <img src="/logo_carbon_content_h_white.png" alt="CARBON Content" className="md:h-6 h-4" />
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-2 md:gap-4">
               {isAdmin && currentView === 'library' && (
-                  <button onClick={() => { posthog?.capture('admin_viewed_user_management'); setCurrentView('users'); }} className="bg-gray-700 px-4 py-2 rounded hover:bg-gray-800 transition-colors flex items-center gap-2"><Users className="w-4 h-4" />Gerenciar</button>
+                  <button onClick={() => { posthog?.capture('admin_viewed_user_management'); setCurrentView('users'); }} className="bg-gray-700 px-4 py-3 md:py-2 rounded hover:bg-gray-800 transition-colors flex items-center gap-2"><Users className="w-4 h-4" /><span className="hidden md:flex">Gerenciar</span></button>
               )}
               {isAdmin && currentView === 'users' && (
-                  <button onClick={() => setCurrentView('library')} className="bg-gray-700 px-4 py-2 rounded hover:bg-gray-800 transition-colors flex items-center gap-2"><Library className="w-4 h-4" />Biblioteca</button>
+                  <button onClick={() => setCurrentView('library')} className="bg-gray-700 px-4 py-3 md:py-2 rounded hover:bg-gray-800 transition-colors flex items-center gap-2"><Library className="w-4 h-4" /><span className="hidden md:flex">Biblioteca</span></button>
               )}
-            <button onClick={handleLogout} className="bg-red-700 px-4 py-2 rounded hover:bg-red-800 transition-colors flex items-center gap-2"><LogOut className="w-4 h-4" />Sair</button>
+            <button onClick={handleLogout} className="bg-red-700 px-4 py-3 md:py-2 rounded hover:bg-red-800 transition-colors flex items-center gap-2"><LogOut className="w-4 h-4" /><span className="hidden md:flex">Sair</span></button>
           </div>
         </div>
       </header>
