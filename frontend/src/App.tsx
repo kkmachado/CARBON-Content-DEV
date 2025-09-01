@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import {
   Search,
   Download,
@@ -29,7 +29,7 @@ import {
   ArrowUp,
   ArrowDown,
 } from 'lucide-react';
-import posthog from 'posthog-js';
+// import posthog from 'posthog-js'; // Removido para corrigir erro de compilação
 
 // --- CONFIGURAÇÕES GLOBAIS ---
 const SUPABASE_URL = 'https://xxtxaxyvhchmbzkwvhpo.supabase.co';
@@ -41,21 +41,18 @@ const CLOUDINARY_CLOUD_NAME = 'carboncars';
 const POSTHOG_KEY = process.env.REACT_APP_POSTHOG_KEY || '';
 const POSTHOG_HOST = process.env.REACT_APP_POSTHOG_HOST || 'https://us.i.posthog.com'; // ou https://eu.i.posthog.com
 
-if (typeof window !== 'undefined' && POSTHOG_KEY) {
+if (typeof window !== 'undefined' && POSTHOG_KEY && (window as any).posthog) {
+  const posthog = (window as any).posthog;
   posthog.init(POSTHOG_KEY, {
     api_host: POSTHOG_HOST,
     capture_pageview: false, // Pageviews são capturados manualmente no componente
     session_recording: {},
   });
-  // Exponha para facilitar debug no console do navegador
-  // @ts-ignore
-  window.posthog = posthog;
   if (process.env.REACT_APP_POSTHOG_DEBUG === 'true') {
     posthog.debug(true);
   }
 } else if (typeof window !== 'undefined') {
-  // Evita silêncio total quando a chave não está definida
-  console.warn('PostHog não inicializado: defina REACT_APP_POSTHOG_KEY no ambiente.');
+  console.warn('PostHog não inicializado: defina REACT_APP_POSTHOG_KEY no ambiente ou a biblioteca não foi carregada.');
 }
 
 // --- INTERFACES TYPESCRIPT ---
@@ -627,11 +624,11 @@ const UserManagement = () => {
     const handleInvite = async (usersToInvite: { email: string, name: string }[]): Promise<{ successful: string[], failed: any[] }> => {
         const results = await supabase.current.adminInviteUsers(usersToInvite);
         if (results.successful.length > 0) {
-            posthog?.capture('admin_users_invited', { count: results.successful.length });
+            (window as any).posthog?.capture('admin_users_invited', { count: results.successful.length });
             fetchUsers();
         }
         if (results.failed.length > 0) {
-            posthog?.capture('admin_users_invite_failed', { count: results.failed.length });
+            (window as any).posthog?.capture('admin_users_invite_failed', { count: results.failed.length });
         }
         return results;
     };
@@ -639,7 +636,7 @@ const UserManagement = () => {
     const handleUpdateUser = async (userId: string, data: { role: 'admin' | 'normal', name: string }) => {
         try {
             await supabase.current.adminUpdateUser(userId, data);
-            posthog?.capture('admin_user_updated', { user_id: userId, updated_role: data.role });
+            (window as any).posthog?.capture('admin_user_updated', { user_id: userId, updated_role: data.role });
             setShowEditModal(null);
             fetchUsers();
         } catch (e: any) {
@@ -650,7 +647,7 @@ const UserManagement = () => {
     const handleDelete = async (userId: string) => {
         try {
             await supabase.current.adminDeleteUser(userId);
-            posthog?.capture('admin_user_deleted', { user_id: userId });
+            (window as any).posthog?.capture('admin_user_deleted', { user_id: userId });
             setShowDeleteModal(null);
             fetchUsers();
         } catch (e: any) {
@@ -660,7 +657,7 @@ const UserManagement = () => {
 
     const handleSendRecovery = async (email: string) => {
         await supabase.current.adminSendRecovery(email);
-        posthog?.capture('admin_user_recovery_sent', { email: email });
+        (window as any).posthog?.capture('admin_user_recovery_sent', { email: email });
         setShowRecoveryModal(null);
         alert('Link de recuperação de senha enviado com sucesso!');
     };
@@ -855,8 +852,8 @@ const UserManagement = () => {
 
 const PostHogPageViewTracker = () => {
     useEffect(() => {
-        if (posthog) {
-            posthog.capture('$pageview');
+        if ((window as any).posthog) {
+            (window as any).posthog.capture('$pageview');
         }
     }, []);
     return null;
@@ -868,7 +865,7 @@ const AssetThumbnail: React.FC<{ asset: CloudinaryAsset; onClick: () => void }> 
   const [imageError, setImageError] = useState(false);
 
   const handleThumbnailClick = () => {
-    posthog?.capture('media_asset_viewed', {
+    (window as any).posthog?.capture('media_asset_viewed', {
         asset_id: asset.public_id,
         asset_type: asset.resource_type,
         display_name: asset.display_name,
@@ -956,6 +953,49 @@ const MainApp = () => {
   const [recoveryEmail, setRecoveryEmail] = useState('');
   const [currentView, setCurrentView] = useState<'library' | 'users'>('library');
 
+  const extractMontadoras = (assets: CloudinaryAsset[]): string[] => { const montadoras = new Set<string>(); assets.forEach(asset => { const montadora = asset.metadata?.montadora; if (montadora && montadora.trim()) montadoras.add(montadora.trim()); }); return Array.from(montadoras).sort(); };
+  const extractTags = (assets: CloudinaryAsset[]): string[] => { const tags = new Set<string>(); assets.forEach(asset => { if (Array.isArray(asset.tags)) { asset.tags.forEach(tag => { if (tag && tag.trim()) tags.add(tag.trim()); }); } }); return Array.from(tags).sort(); };
+  const filterAssetsByMontadora = (assets: CloudinaryAsset[], montadora: string): CloudinaryAsset[] => { if (!montadora) return assets; return assets.filter(asset => asset.metadata?.montadora?.toLowerCase().includes(montadora.toLowerCase())); };
+  const filterAssetsByTag = (assets: CloudinaryAsset[], tag: string): CloudinaryAsset[] => { if (!tag) return assets; return assets.filter(asset => Array.isArray(asset.tags) && asset.tags.some(assetTag => assetTag.toLowerCase().includes(tag.toLowerCase()))); };
+  const filterAssetsBySearchTerm = (assets: CloudinaryAsset[], searchTerm: string): CloudinaryAsset[] => { if (!searchTerm) return assets; const term = searchTerm.toLowerCase(); return assets.filter(asset => (asset.context?.custom?.title || asset.display_name || '').toLowerCase().includes(term) || (asset.metadata?.legenda || asset.context?.custom?.caption || '').toLowerCase().includes(term) || (Array.isArray(asset.tags) && asset.tags.some(tag => tag.toLowerCase().includes(term))) || (asset.metadata?.montadora || '').toLowerCase().includes(term) ); };
+  const getFilteredAssets = (): CloudinaryAsset[] => { let filtered = assets; filtered = filterAssetsBySearchTerm(filtered, appliedSearchTerm); filtered = filterAssetsByMontadora(filtered, appliedSelectedMontadora); filtered = filterAssetsByTag(filtered, appliedSelectedTag); return filtered; };
+  
+  const filteredAssets = getFilteredAssets();
+
+  const loadAllAssets = useCallback(async () => {
+    if (!user) return;
+    setLoading(true);
+    try {
+        const cloudinaryAssets = await cloudinary.current.getAllAssets();
+        setAssets(cloudinaryAssets);
+    } catch (error: any) {
+        console.error("Erro ao carregar biblioteca:", error);
+        setAssets([]);
+    } finally {
+        setLoading(false);
+    }
+  }, [user]);
+
+  const executeSearch = useCallback(async () => {
+    if (!user) return;
+    setLoading(true);
+    try {
+        if (!appliedSearchTerm.trim() && !appliedSelectedMontadora && !appliedSelectedTag) {
+            await loadAllAssets();
+            return;
+        }
+        const cloudinaryAssets = await cloudinary.current.searchAssets(appliedSearchTerm);
+        let filteredResults = filterAssetsByMontadora(cloudinaryAssets, appliedSelectedMontadora);
+        filteredResults = filterAssetsByTag(filteredResults, appliedSelectedTag);
+        setAssets(filteredResults);
+    } catch (error: any) {
+        console.error("Erro na busca:", error);
+        setAssets([]);
+    } finally {
+        setLoading(false);
+    }
+  }, [user, appliedSearchTerm, appliedSelectedMontadora, appliedSelectedTag, loadAllAssets]);
+
   useEffect(() => {
     const storedUser = supabase.current.getUser();
     if (storedUser) {
@@ -984,16 +1024,16 @@ const MainApp = () => {
   }, []);
 
   useEffect(() => {
-    if (user && posthog) {
-        posthog.identify(user.id, {
+    if (user && (window as any).posthog) {
+        (window as any).posthog.identify(user.id, {
             email: user.email,
             name: user.user_metadata?.name,
         });
         loadAllAssets();
-    } else if (!user && posthog) {
-        posthog.reset();
+    } else if (!user && (window as any).posthog) {
+        (window as any).posthog.reset();
     }
-  }, [user]);
+  }, [user, loadAllAssets]);
 
   useEffect(() => {
     setAvailableMontadoras(extractMontadoras(assets));
@@ -1001,20 +1041,13 @@ const MainApp = () => {
   }, [assets]);
 
   useEffect(() => {
-    if (user) executeSearch();
-  }, [user, appliedSearchTerm, appliedSelectedMontadora, appliedSelectedTag]);
+    if (user) {
+        executeSearch();
+    }
+  }, [user, executeSearch]);
 
-  const extractMontadoras = (assets: CloudinaryAsset[]): string[] => { const montadoras = new Set<string>(); assets.forEach(asset => { const montadora = asset.metadata?.montadora; if (montadora && montadora.trim()) montadoras.add(montadora.trim()); }); return Array.from(montadoras).sort(); };
-  const extractTags = (assets: CloudinaryAsset[]): string[] => { const tags = new Set<string>(); assets.forEach(asset => { if (Array.isArray(asset.tags)) { asset.tags.forEach(tag => { if (tag && tag.trim()) tags.add(tag.trim()); }); } }); return Array.from(tags).sort(); };
-  const filterAssetsByMontadora = (assets: CloudinaryAsset[], montadora: string): CloudinaryAsset[] => { if (!montadora) return assets; return assets.filter(asset => asset.metadata?.montadora?.toLowerCase().includes(montadora.toLowerCase())); };
-  const filterAssetsByTag = (assets: CloudinaryAsset[], tag: string): CloudinaryAsset[] => { if (!tag) return assets; return assets.filter(asset => Array.isArray(asset.tags) && asset.tags.some(assetTag => assetTag.toLowerCase().includes(tag.toLowerCase()))); };
-  const filterAssetsBySearchTerm = (assets: CloudinaryAsset[], searchTerm: string): CloudinaryAsset[] => { if (!searchTerm) return assets; const term = searchTerm.toLowerCase(); return assets.filter(asset => (asset.context?.custom?.title || asset.display_name || '').toLowerCase().includes(term) || (asset.metadata?.legenda || asset.context?.custom?.caption || '').toLowerCase().includes(term) || (Array.isArray(asset.tags) && asset.tags.some(tag => tag.toLowerCase().includes(term))) || (asset.metadata?.montadora || '').toLowerCase().includes(term) ); };
-  const getFilteredAssets = (): CloudinaryAsset[] => { let filtered = assets; filtered = filterAssetsBySearchTerm(filtered, appliedSearchTerm); filtered = filterAssetsByMontadora(filtered, appliedSelectedMontadora); filtered = filterAssetsByTag(filtered, appliedSelectedTag); return filtered; };
-  const filteredAssets = getFilteredAssets();
-  const loadAllAssets = async () => { if (!user) return; setLoading(true); try { const cloudinaryAssets = await cloudinary.current.getAllAssets(); setAssets(cloudinaryAssets); } catch (error: any) { console.error("Erro ao carregar biblioteca:", error); setAssets([]); } finally { setLoading(false); } };
-  const executeSearch = async () => { if (!user) return; setLoading(true); try { if (!appliedSearchTerm.trim() && !appliedSelectedMontadora && !appliedSelectedTag) { await loadAllAssets(); return; } const cloudinaryAssets = await cloudinary.current.searchAssets(appliedSearchTerm); let filteredResults = filterAssetsByMontadora(cloudinaryAssets, appliedSelectedMontadora); filteredResults = filterAssetsByTag(filteredResults, appliedSelectedTag); setAssets(filteredResults); } catch (error: any) { console.error("Erro na busca:", error); setAssets([]); } finally { setLoading(false); } };
   const handleSearchButtonClick = () => {
-      posthog?.capture('media_searched', {
+      (window as any).posthog?.capture('media_searched', {
           search_term: searchTerm,
           filters: {
               montadora: appliedSelectedMontadora,
@@ -1025,7 +1058,7 @@ const MainApp = () => {
   };
   const handleSearchInputKeyPress = (e: React.KeyboardEvent<HTMLInputElement>) => { if (e.key === 'Enter') handleSearchButtonClick(); };
   const clearAllFilters = () => {
-      posthog?.capture('media_filters_cleared');
+      (window as any).posthog?.capture('media_filters_cleared');
       setSearchTerm(''); setSelectedMontadora(''); setSelectedTag(''); setAppliedSearchTerm(''); setAppliedSelectedMontadora(''); setAppliedSelectedTag('');
   };
   const handleLogin = async (email: string, pass: string) => {
@@ -1033,7 +1066,7 @@ const MainApp = () => {
       setIsLoggingIn(true);
       try {
           const { user } = await supabase.current.signIn(email, pass);
-          posthog?.capture('user_login_success');
+          (window as any).posthog?.capture('user_login_success');
           setUser(user);
       } catch (error: any) {
           let errorMessage = 'Erro de autenticação';
@@ -1044,14 +1077,14 @@ const MainApp = () => {
               else if (msg.includes('rate limit')) errorMessage = 'Muitas tentativas.';
               else errorMessage = error.message;
           }
-          posthog?.capture('user_login_failed', { error: errorMessage });
+          (window as any).posthog?.capture('user_login_failed', { error: errorMessage });
           setAuthError(errorMessage);
       } finally {
           setIsLoggingIn(false);
       }
   };
   const handleLogout = async () => {
-      posthog?.capture('user_logout');
+      (window as any).posthog?.capture('user_logout');
       await supabase.current.signOut();
       setUser(null);
       setAssets([]);
@@ -1062,7 +1095,7 @@ const MainApp = () => {
       setIsLoggingIn(true);
       try {
           await supabase.current.sendPasswordResetEmail(email);
-          posthog?.capture('user_password_recovery_requested', { email });
+          (window as any).posthog?.capture('user_password_recovery_requested', { email });
           setRecoveryEmail(email);
           setAuthView('password_recovery_sent');
       } catch (error: any) {
@@ -1078,7 +1111,7 @@ const MainApp = () => {
       setIsLoggingIn(true);
       try {
           await supabase.current.updateUserPassword(recoveryToken, password);
-          posthog?.capture('user_password_updated');
+          (window as any).posthog?.capture('user_password_updated');
           alert("Senha definida com sucesso! Agora você pode fazer o login.");
           setAuthView('login');
           window.history.replaceState(null, '', window.location.pathname);
@@ -1090,7 +1123,7 @@ const MainApp = () => {
   };
   const handleDownload = async (asset: CloudinaryAsset) => {
       setDownloadingAssets(prev => new Set(prev).add(asset.public_id));
-      posthog?.capture('media_asset_downloaded', {
+      (window as any).posthog?.capture('media_asset_downloaded', {
           asset_id: asset.public_id,
           asset_type: asset.resource_type,
           file_name: `${asset.context?.custom?.title || asset.display_name || asset.public_id}.${asset.format}`
@@ -1121,23 +1154,58 @@ const MainApp = () => {
           }, 2000);
       }
   };
+
   const shareAssetViaWebShare = async (asset: CloudinaryAsset) => {
-      posthog?.capture('media_asset_shared', {
+      (window as any).posthog?.capture('media_asset_shared', {
           asset_id: asset.public_id,
           asset_type: asset.resource_type,
           share_method: 'web_share_api'
       });
+
+      // --- Início da Lógica Aprimorada ---
+
       try {
+          // Etapa 1: Tentar compartilhar o ARQUIVO (melhor experiência)
           const response = await fetch(asset.secure_url);
-          if (!response.ok) throw new Error('Erro ao baixar mídia');
+          if (!response.ok) throw new Error('Network response was not ok.');
+          
           const blob = await response.blob();
-          const fileName = `${asset.display_name}.${asset.format}`;
+          const fileName = `${asset.display_name || asset.public_id}.${asset.format}`;
           const mimeType = asset.resource_type === 'video' ? `video/${asset.format}` : `image/${asset.format}`;
           const file = new File([blob], fileName, { type: mimeType });
+
           if (navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
-              await navigator.share({ title: asset.display_name, text: asset.context?.alt || '', files: [file] });
+              await navigator.share({
+                  title: asset.display_name,
+                  text: asset.context?.alt || '',
+                  files: [file]
+              });
+              // Se chegou aqui, o compartilhamento do arquivo foi bem-sucedido.
+              return; 
+          } else {
+              // Se o navegador diz que não pode compartilhar o arquivo, joga um erro para acionar o fallback.
+              throw new Error('navigator.canShare({ files: ... }) returned false.');
           }
-      } catch (error) { /* Falha silenciosa */ }
+      } catch (error) {
+          // Etapa 2: FALLBACK - Se compartilhar o arquivo falhou, compartilhar a URL
+          console.warn("File share failed, falling back to URL share:", error);
+          try {
+              if (navigator.share) {
+                  await navigator.share({
+                      title: asset.display_name,
+                      text: asset.context?.alt || `Confira esta mídia:`,
+                      url: asset.secure_url,
+                  });
+              } else {
+                // Se nem a API de share básica existe, não faz nada.
+                console.error("Web Share API not supported.");
+              }
+          } catch (fallbackError) {
+              // Falha silenciosa se até o fallback der erro.
+              console.error("Fallback URL share also failed:", fallbackError);
+          }
+      }
+      // --- Fim da Lógica Aprimorada ---
   };
   
   const isAdmin = user?.user_metadata?.role === 'admin';
@@ -1164,7 +1232,7 @@ const MainApp = () => {
           <img src="/logo_carbon_content_h_white.png" alt="CARBON Content" className="md:h-6 h-4" />
           <div className="flex items-center gap-2 md:gap-4">
               {isAdmin && currentView === 'library' && (
-                  <button onClick={() => { posthog?.capture('admin_viewed_user_management'); setCurrentView('users'); }} className="bg-gray-700 px-4 py-3 md:py-2 rounded hover:bg-gray-800 transition-colors flex items-center gap-2"><Users className="w-4 h-4" /><span className="hidden md:flex">Gerenciar</span></button>
+                  <button onClick={() => { (window as any).posthog?.capture('admin_viewed_user_management'); setCurrentView('users'); }} className="bg-gray-700 px-4 py-3 md:py-2 rounded hover:bg-gray-800 transition-colors flex items-center gap-2"><Users className="w-4 h-4" /><span className="hidden md:flex">Gerenciar</span></button>
               )}
               {isAdmin && currentView === 'users' && (
                   <button onClick={() => setCurrentView('library')} className="bg-gray-700 px-4 py-3 md:py-2 rounded hover:bg-gray-800 transition-colors flex items-center gap-2"><Library className="w-4 h-4" /><span className="hidden md:flex">Biblioteca</span></button>
@@ -1193,7 +1261,7 @@ const MainApp = () => {
                                 <div>
                                     <label className="block text-sm font-medium mb-2">Filtrar por montadora</label>
                                     <div className="relative">
-                                        <select value={selectedMontadora} onChange={(e) => { setSelectedMontadora(e.target.value); setAppliedSelectedMontadora(e.target.value); posthog?.capture('media_filter_changed', { filter: 'montadora', value: e.target.value }); }} className="w-full p-3 pr-10 border border-gray-300 rounded-md appearance-none bg-white">
+                                        <select value={selectedMontadora} onChange={(e) => { setSelectedMontadora(e.target.value); setAppliedSelectedMontadora(e.target.value); (window as any).posthog?.capture('media_filter_changed', { filter: 'montadora', value: e.target.value }); }} className="w-full p-3 pr-10 border border-gray-300 rounded-md appearance-none bg-white">
                                             <option value="">Todas as montadoras</option>
                                             {availableMontadoras.map((montadora) => <option key={montadora} value={montadora}>{montadora.toUpperCase()}</option>)}
                                         </select>
@@ -1204,7 +1272,7 @@ const MainApp = () => {
                                 <div>
                                     <label className="block text-sm font-medium mb-2">Filtrar por tag</label>
                                     <div className="relative">
-                                        <select value={selectedTag} onChange={(e) => { setSelectedTag(e.target.value); setAppliedSelectedTag(e.target.value); posthog?.capture('media_filter_changed', { filter: 'tag', value: e.target.value }); }} className="w-full p-3 pr-10 border border-gray-300 rounded-md appearance-none bg-white">
+                                        <select value={selectedTag} onChange={(e) => { setSelectedTag(e.target.value); setAppliedSelectedTag(e.target.value); (window as any).posthog?.capture('media_filter_changed', { filter: 'tag', value: e.target.value }); }} className="w-full p-3 pr-10 border border-gray-300 rounded-md appearance-none bg-white">
                                             <option value="">Todas as tags</option>
                                             {availableTags.map((tag) => <option key={tag} value={tag}>{tag}</option>)}
                                         </select>
