@@ -116,10 +116,41 @@ const getAdminHeaders = () => ({
 
 app.get('/api/admin/users', checkAdminConfig, async (req, res) => {
     try {
-        const response = await fetch(`${SUPABASE_URL}/auth/v1/admin/users`, { method: 'GET', headers: getAdminHeaders() });
-        const data = await response.json();
-        if (!response.ok) throw data;
-        res.json(data);
+        // Suporta paginação via query params, mas por padrão busca todos.
+        const fetchAll = (req.query.fetchAll ?? 'true') === 'true';
+        const pageParam = parseInt(req.query.page, 10);
+        const perPageParam = parseInt(req.query.per_page, 10);
+
+        // Valor padrão razoável; Supabase permite até 1000 em alguns ambientes.
+        const perPage = Number.isFinite(perPageParam) && perPageParam > 0 ? perPageParam : 200;
+
+        if (!fetchAll && Number.isFinite(pageParam) && pageParam > 0) {
+            // Modo página única (pass-through de paginação)
+            const url = `${SUPABASE_URL}/auth/v1/admin/users?page=${pageParam}&per_page=${perPage}`;
+            const response = await fetch(url, { method: 'GET', headers: getAdminHeaders() });
+            const data = await response.json();
+            if (!response.ok) throw data;
+            return res.json(data);
+        }
+
+        // Modo buscar todos: pagina até esgotar resultados
+        const allUsers = [];
+        let page = 1;
+        const maxPages = 100; // proteção contra loops infinitos
+        while (page <= maxPages) {
+            const url = `${SUPABASE_URL}/auth/v1/admin/users?page=${page}&per_page=${perPage}`;
+            const response = await fetch(url, { method: 'GET', headers: getAdminHeaders() });
+            const data = await response.json();
+            if (!response.ok) throw data;
+
+            const usersPage = Array.isArray(data?.users) ? data.users : Array.isArray(data) ? data : [];
+            allUsers.push(...usersPage);
+
+            if (usersPage.length < perPage) break; // última página
+            page += 1;
+        }
+
+        res.json({ users: allUsers });
     } catch (error) {
         console.error("Erro ao buscar usuários (Admin):", error);
         res.status(error.code || 500).json({ error: 'Falha ao buscar usuários', details: error.message || 'Erro desconhecido.' });
