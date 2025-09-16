@@ -59,7 +59,7 @@ function getCurrentDate() {
 
 function generateSearchExpression(additionalTerms = '') {
   const currentDate = getCurrentDate();
-  let baseExpression = `(resource_type:video OR resource_type:image) AND (asset_folder:vendedores/*) AND (metadata.validade>${currentDate})`;
+  let baseExpression = `(resource_type:video OR resource_type:image) AND (asset_folder:vendedores/*) AND (metadata.validade>=${currentDate})`;
   if (additionalTerms && additionalTerms.trim()) {
     baseExpression = `${additionalTerms.trim()} AND ${baseExpression}`;
   }
