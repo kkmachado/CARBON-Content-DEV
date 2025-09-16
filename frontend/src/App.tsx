@@ -923,15 +923,6 @@ const AssetThumbnail: React.FC<{ asset: CloudinaryAsset; onClick: () => void }> 
         </div>
       </div>
       
-      {asset.resource_type === 'video' && asset.duration && (
-        <div className="absolute top-3 right-3 bg-black/80 backdrop-blur-sm text-white text-xs px-2.5 py-1 rounded-full font-medium">
-          {`${Math.floor(asset.duration / 60).toString().padStart(2, '0')}:${Math.floor(asset.duration % 60).toString().padStart(2, '0')}`}
-        </div>
-      )}
-       <div className="absolute bottom-3 left-3 bg-black/80 backdrop-blur-sm text-white text-xs px-2.5 py-1 rounded-full font-medium flex items-center gap-1.5">
-          {asset.resource_type === 'video' ? <Video className="w-3 h-3" /> : <ImageIcon className="w-3 h-3" />}
-          <span>{asset.resource_type === 'video' ? 'Vídeo' : 'Imagem'}</span>
-        </div>
     </div>
   );
 };
@@ -1011,7 +1002,7 @@ const MainApp = () => {
   const extractTags = (assets: CloudinaryAsset[]): string[] => { const tags = new Set<string>(); assets.forEach(asset => { if (Array.isArray(asset.tags)) { asset.tags.forEach(tag => { if (tag && tag.trim()) tags.add(tag.trim()); }); } }); return Array.from(tags).sort(); };
   const filterAssetsByMontadora = (assets: CloudinaryAsset[], montadora: string): CloudinaryAsset[] => { if (!montadora) return assets; return assets.filter(asset => asset.metadata?.montadora?.toLowerCase().includes(montadora.toLowerCase())); };
   const filterAssetsByTag = (assets: CloudinaryAsset[], tag: string): CloudinaryAsset[] => { if (!tag) return assets; return assets.filter(asset => Array.isArray(asset.tags) && asset.tags.some(assetTag => assetTag.toLowerCase().includes(tag.toLowerCase()))); };
-  const filterAssetsBySearchTerm = (assets: CloudinaryAsset[], searchTerm: string): CloudinaryAsset[] => { if (!searchTerm) return assets; const term = searchTerm.toLowerCase(); return assets.filter(asset => (asset.context?.custom?.title || asset.display_name || '').toLowerCase().includes(term) || (asset.metadata?.legenda || '').toLowerCase().includes(term) || (Array.isArray(asset.tags) && asset.tags.some(tag => tag.toLowerCase().includes(term))) || (asset.metadata?.montadora || '').toLowerCase().includes(term) ); };
+  const filterAssetsBySearchTerm = (assets: CloudinaryAsset[], searchTerm: string): CloudinaryAsset[] => { if (!searchTerm) return assets; const term = searchTerm.toLowerCase(); return assets.filter(asset => (asset.context?.custom?.title || asset.display_name || '').toLowerCase().includes(term) || (asset.metadata?.legenda || asset.context?.custom?.caption || '').toLowerCase().includes(term) || (Array.isArray(asset.tags) && asset.tags.some(tag => tag.toLowerCase().includes(term))) || (asset.metadata?.montadora || '').toLowerCase().includes(term) ); };
   const getFilteredAssets = (): CloudinaryAsset[] => { let filtered = assets; filtered = filterAssetsBySearchTerm(filtered, appliedSearchTerm); filtered = filterAssetsByMontadora(filtered, appliedSelectedMontadora); filtered = filterAssetsByTag(filtered, appliedSelectedTag); return filtered; };
   const filteredAssets = getFilteredAssets();
   const loadAllAssets = async () => { if (!user) return; setLoading(true); try { const cloudinaryAssets = await cloudinary.current.getAllAssets(); setAssets(cloudinaryAssets); } catch (error: any) { console.error("Erro ao carregar biblioteca:", error); setAssets([]); } finally { setLoading(false); } };
