@@ -84,7 +84,7 @@ interface CloudinaryAsset {
   tags: string[];
   resource_type: 'image' | 'video';
   context?: { alt?: string; custom?: { caption?: string; title?: string; }; [key: string]: any; };
-  metadata?: { validade?: string; acesso_grupo_iesa?: string; legenda?: string; montadora?: string; [key: string]: any; };
+  metadata?: { validade?: string; legenda?: string; montadora?: string; [key: string]: any; };
 }
 
 type SortableUserKeys = 'name' | 'email' | 'role' | 'last_sign_in_at';
@@ -1011,7 +1011,7 @@ const MainApp = () => {
   const extractTags = (assets: CloudinaryAsset[]): string[] => { const tags = new Set<string>(); assets.forEach(asset => { if (Array.isArray(asset.tags)) { asset.tags.forEach(tag => { if (tag && tag.trim()) tags.add(tag.trim()); }); } }); return Array.from(tags).sort(); };
   const filterAssetsByMontadora = (assets: CloudinaryAsset[], montadora: string): CloudinaryAsset[] => { if (!montadora) return assets; return assets.filter(asset => asset.metadata?.montadora?.toLowerCase().includes(montadora.toLowerCase())); };
   const filterAssetsByTag = (assets: CloudinaryAsset[], tag: string): CloudinaryAsset[] => { if (!tag) return assets; return assets.filter(asset => Array.isArray(asset.tags) && asset.tags.some(assetTag => assetTag.toLowerCase().includes(tag.toLowerCase()))); };
-  const filterAssetsBySearchTerm = (assets: CloudinaryAsset[], searchTerm: string): CloudinaryAsset[] => { if (!searchTerm) return assets; const term = searchTerm.toLowerCase(); return assets.filter(asset => (asset.context?.custom?.title || asset.display_name || '').toLowerCase().includes(term) || (asset.metadata?.legenda || asset.context?.custom?.caption || '').toLowerCase().includes(term) || (Array.isArray(asset.tags) && asset.tags.some(tag => tag.toLowerCase().includes(term))) || (asset.metadata?.montadora || '').toLowerCase().includes(term) ); };
+  const filterAssetsBySearchTerm = (assets: CloudinaryAsset[], searchTerm: string): CloudinaryAsset[] => { if (!searchTerm) return assets; const term = searchTerm.toLowerCase(); return assets.filter(asset => (asset.context?.custom?.title || asset.display_name || '').toLowerCase().includes(term) || (asset.metadata?.legenda || '').toLowerCase().includes(term) || (Array.isArray(asset.tags) && asset.tags.some(tag => tag.toLowerCase().includes(term))) || (asset.metadata?.montadora || '').toLowerCase().includes(term) ); };
   const getFilteredAssets = (): CloudinaryAsset[] => { let filtered = assets; filtered = filterAssetsBySearchTerm(filtered, appliedSearchTerm); filtered = filterAssetsByMontadora(filtered, appliedSelectedMontadora); filtered = filterAssetsByTag(filtered, appliedSelectedTag); return filtered; };
   const filteredAssets = getFilteredAssets();
   const loadAllAssets = async () => { if (!user) return; setLoading(true); try { const cloudinaryAssets = await cloudinary.current.getAllAssets(); setAssets(cloudinaryAssets); } catch (error: any) { console.error("Erro ao carregar biblioteca:", error); setAssets([]); } finally { setLoading(false); } };
