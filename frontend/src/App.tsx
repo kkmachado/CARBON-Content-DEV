@@ -35,6 +35,9 @@ import posthog from 'posthog-js';
 const SUPABASE_URL = 'https://xxtxaxyvhchmbzkwvhpo.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inh4dHhheHl2aGNobWJ6a3d2aHBvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTUwMjAyODIsImV4cCI6MjA3MDU5NjI4Mn0.lUzUTNGUVv-Yi-QVsDqyeZdy_eXPPvapEAfiORlLmUE';
 const CLOUDINARY_CLOUD_NAME = 'carboncars';
+const BACKEND_URL_PROD = 'https://carbon-content-backend.qqbqnt.easypanel.host';
+const BACKEND_URL_DEV = 'https://carbon-content-dev-backend.qqbqnt.easypanel.host';
+const BACKEND_URL_LOCAL = 'http://localhost:5001';
 
 // --- CONFIGURAÇÃO DO POSTHOG ---
 // Use variáveis de ambiente para configurar o PostHog em tempo de build
@@ -57,6 +60,24 @@ if (typeof window !== 'undefined' && POSTHOG_KEY) {
   // Evita silêncio total quando a chave não está definida
   console.warn('PostHog não inicializado: defina REACT_APP_POSTHOG_KEY no ambiente.');
 }
+
+const resolveBackendBaseUrl = (): string => {
+  if (typeof window === 'undefined') {
+    return BACKEND_URL_PROD;
+  }
+
+  const hostname = window.location.hostname.toLowerCase();
+
+  if (hostname === 'localhost' || hostname === '127.0.0.1') {
+    return BACKEND_URL_LOCAL;
+  }
+
+  if (hostname.includes('carbon-content-dev-frontend.qqbqnt.easypanel.host')) {
+    return BACKEND_URL_DEV;
+  }
+
+  return BACKEND_URL_PROD;
+};
 
 // --- INTERFACES TYPESCRIPT ---
 interface User {
@@ -100,13 +121,7 @@ class SupabaseClient {
     this.url = SUPABASE_URL;
     this.key = SUPABASE_ANON_KEY;
     this.token = localStorage.getItem('supabase_token');
-    if (window.location.hostname === 'localhost') {
-      this.backendUrl = 'http://localhost:5001';
-    } else if (window.location.hostname.includes('carbon-content-dev-frontend.qqbqnt.easypanel.host')) {
-      this.backendUrl = 'https://carbon-content-dev-backend.qqbqnt.easypanel.host';
-    } else {
-      this.backendUrl = 'https://carbon-content-backend.qqbqnt.easypanel.host';
-    }
+    this.backendUrl = resolveBackendBaseUrl();
   }
 
   private getHeaders(includeAuth: boolean = true): Record<string, string> {
@@ -203,13 +218,7 @@ class CloudinaryClient {
   private backendUrl: string;
 
   constructor() {
-    if (window.location.hostname === 'localhost') {
-      this.backendUrl = 'http://localhost:5001';
-    } else if (window.location.hostname.includes('carbon-content-dev-frontend.qqbqnt.easypanel.host')) {
-      this.backendUrl = 'https://carbon-content-dev-backend.qqbqnt.easypanel.host/';
-    } else {
-      this.backendUrl = 'https://carbon-content-backend.qqbqnt.easypanel.host/';
-    }
+    this.backendUrl = resolveBackendBaseUrl();
   }
 
   async searchAssets(searchTerm: string): Promise<CloudinaryAsset[]> {
