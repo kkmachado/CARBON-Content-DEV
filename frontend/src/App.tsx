@@ -1137,28 +1137,20 @@ const MainApp = () => {
       }
   };
   const shareAssetViaWebShare = async (asset: CloudinaryAsset) => {
-      // Compartilhamento direto de arquivo (imagem/vídeo) sem fallbacks de link/clipboard
       posthog?.capture('media_asset_shared', {
           asset_id: asset.public_id,
           asset_type: asset.resource_type,
           share_method: 'web_share_api'
       });
 
-      // Helper para mapear MIME corretamente (ex.: jpg -> image/jpeg)
       const getMimeType = (resType: 'image' | 'video', fmt: string) => {
           const format = (fmt || '').toLowerCase();
           if (resType === 'video') return `video/${format}`;
           switch (format) {
-              case 'jpg':
-              case 'jpeg':
-              case 'jfif':
-                  return 'image/jpeg';
-              case 'svg':
-                  return 'image/svg+xml';
-              case 'ico':
-                  return 'image/x-icon';
-              default:
-                  return `image/${format}`;
+              case 'jpg': case 'jpeg': case 'jfif': return 'image/jpeg';
+              case 'svg': return 'image/svg+xml';
+              case 'ico': return 'image/x-icon';
+              default: return `image/${format}`;
           }
       };
 
@@ -1171,70 +1163,77 @@ const MainApp = () => {
           for (const value of possibleTexts) {
               if (typeof value === 'string') {
                   const trimmed = value.trim();
-                  if (trimmed.length > 0) {
-                      return trimmed;
-                  }
+                  if (trimmed.length > 0) return trimmed;
               }
           }
           return '';
       };
 
       try {
-          if (!navigator.share || !navigator.canShare) {
-              alert('Compartilhamento de arquivo não é suportado neste dispositivo/navegador.');
+          // 1. Validar suporte básico da API
+          if (!navigator.share) {
+              alert('O compartilhamento não é suportado neste navegador.');
               return;
           }
 
+          // 2. Preparar os dados para compartilhamento
           const response = await fetch(asset.secure_url);
-          if (!response.ok) throw new Error('Erro ao baixar mídia');
+          if (!response.ok) throw new Error('Erro ao baixar mídia para compartilhamento');
           const blob = await response.blob();
           const fileName = `${asset.display_name}.${asset.format}`;
           const mimeType = getMimeType(asset.resource_type, asset.format);
           const file = new File([blob], fileName, { type: mimeType });
-
+          
           const captionText = getCaptionText(asset);
-          const fallbackTitle = asset.context?.custom?.title || asset.display_name || fileName;
-          const isWindows = typeof navigator !== 'undefined' && /windows/i.test(navigator.userAgent || '');
-          const shareData: ShareData = {
-              files: [file]
+          const title = asset.context?.custom?.title || asset.display_name || fileName;
+
+          const fileShareData: ShareData = {
+              files: [file],
+              title: title,
+              text: captionText,
           };
-          if (isWindows) {
-              if (captionText) {
-                  shareData.title = captionText;
-              } else if (fallbackTitle) {
-                  shareData.title = fallbackTitle;
-              }
-          } else {
-              if (fallbackTitle) {
-                  shareData.title = fallbackTitle;
-              }
-              if (captionText) {
-                  shareData.text = captionText;
-              }
-          }
 
-          if (!navigator.canShare(shareData)) {
-              alert('Este dispositivo/navegador não suporta compartilhamento de imagens como arquivo.');
-              return;
-          }
-          if (isWindows && captionText && navigator.clipboard?.writeText) {
-              try {
-                  await navigator.clipboard.writeText(captionText);
-                  console.info('Legenda copiada para a área de transferência como fallback para Windows.');
-              } catch (clipboardError) {
-                  console.warn('Falha ao copiar a legenda para a área de transferência:', clipboardError);
-              }
-          }
+          const linkShareData: ShareData = {
+            url: asset.secure_url,
+            title: title,
+            text: captionText,
+          };
+          
+          const isWindows = typeof navigator !== 'undefined' && /windows/i.test(navigator.userAgent || '');
 
-          await navigator.share(shareData);
+          // 3. Tentar compartilhar o arquivo primeiro (com workaround para Windows)
+          if (navigator.canShare && navigator.canShare(fileShareData)) {
+              // No Windows, o 'text' é frequentemente ignorado ao compartilhar arquivos.
+              // Aplicações como WhatsApp Desktop não preenchem a mensagem.
+              // Como workaround, copiamos a legenda para o clipboard para o usuário colar manualmente.
+              if (isWindows && captionText && navigator.clipboard?.writeText) {
+                  try {
+                      await navigator.clipboard.writeText(captionText);
+                      // Idealmente, uma notificação "toast" seria exibida aqui.
+                      // Ex: "Legenda copiada para a área de transferência!"
+                      console.info('Legenda copiada para a área de transferência (fallback para Windows).');
+                  } catch (clipboardError) {
+                      console.warn('Falha ao copiar a legenda para a área de transferência:', clipboardError);
+                  }
+              }
+              await navigator.share(fileShareData);
+          } 
+          // 4. Se não for possível compartilhar arquivo, tentar compartilhar o link como fallback
+          else if (navigator.canShare && navigator.canShare(linkShareData)) {
+              await navigator.share(linkShareData);
+          } 
+          // 5. Se nenhuma forma de compartilhamento for compatível
+          else {
+              alert('Não é possível compartilhar este tipo de conteúdo neste navegador.');
+          }
       } catch (err: any) {
           // Silencia cancelamentos do usuário e quaisquer erros de compartilhamento
           const msg = String(err?.message || '').toLowerCase();
           const name = String(err?.name || '');
           if (name === 'AbortError' || msg.includes('share canceled') || msg.includes('share cancelled')) {
-              return; // usuário cancelou — não mostrar aviso
+              return; // usuário cancelou a ação, não mostrar erro.
           }
-          // Para demais erros, não alertar. Opcionalmente poderíamos logar de forma discreta.
+          console.error('Erro no compartilhamento:', err);
       }
   };
   
