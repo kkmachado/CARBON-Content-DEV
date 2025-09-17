@@ -1193,20 +1193,23 @@ const MainApp = () => {
           const file = new File([blob], fileName, { type: mimeType });
 
           const captionText = getCaptionText(asset);
+          const fallbackTitle = asset.context?.custom?.title || asset.display_name || fileName;
+          const isWindows = typeof navigator !== 'undefined' && /windows/i.test(navigator.userAgent || '');
+          const shareTitle = isWindows ? (captionText || fallbackTitle) : fallbackTitle;
           const shareData: ShareData = {
-              title: asset.display_name,
+              title: shareTitle,
               files: [file]
           };
           if (captionText) {
               shareData.text = captionText;
+          } else if (shareTitle) {
+              shareData.text = shareTitle;
           }
 
           if (!navigator.canShare(shareData)) {
               alert('Este dispositivo/navegador não suporta compartilhamento de imagens como arquivo.');
               return;
           }
-
-          const isWindows = typeof navigator !== 'undefined' && /windows/i.test(navigator.userAgent || '');
           if (isWindows && captionText && navigator.clipboard?.writeText) {
               try {
                   await navigator.clipboard.writeText(captionText);
