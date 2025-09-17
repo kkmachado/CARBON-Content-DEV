@@ -1195,15 +1195,19 @@ const MainApp = () => {
           const captionText = getCaptionText(asset);
           const fallbackTitle = asset.context?.custom?.title || asset.display_name || fileName;
           const isWindows = typeof navigator !== 'undefined' && /windows/i.test(navigator.userAgent || '');
-          const shareTitle = isWindows ? (captionText || fallbackTitle) : fallbackTitle;
           const shareData: ShareData = {
-              title: shareTitle,
               files: [file]
           };
+          if (!isWindows && fallbackTitle) {
+              shareData.title = fallbackTitle;
+          }
           if (captionText) {
               shareData.text = captionText;
-          } else if (shareTitle) {
-              shareData.text = shareTitle;
+              if (!isWindows) {
+                  shareData.title = fallbackTitle || captionText;
+              }
+          } else if (fallbackTitle) {
+              shareData.text = fallbackTitle;
           }
 
           if (!navigator.canShare(shareData)) {
