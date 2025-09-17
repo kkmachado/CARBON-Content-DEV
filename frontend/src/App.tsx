@@ -1198,16 +1198,19 @@ const MainApp = () => {
           const shareData: ShareData = {
               files: [file]
           };
-          if (!isWindows && fallbackTitle) {
-              shareData.title = fallbackTitle;
-          }
-          if (captionText) {
-              shareData.text = captionText;
-              if (!isWindows) {
-                  shareData.title = fallbackTitle || captionText;
+          if (isWindows) {
+              if (captionText) {
+                  shareData.title = captionText;
+              } else if (fallbackTitle) {
+                  shareData.title = fallbackTitle;
               }
-          } else if (fallbackTitle) {
-              shareData.text = fallbackTitle;
+          } else {
+              if (fallbackTitle) {
+                  shareData.title = fallbackTitle;
+              }
+              if (captionText) {
+                  shareData.text = captionText;
+              }
           }
 
           if (!navigator.canShare(shareData)) {
