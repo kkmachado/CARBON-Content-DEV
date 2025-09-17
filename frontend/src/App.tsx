@@ -1382,7 +1382,7 @@ const MainApp = () => {
       )}
       
       {shareNotification && (
-        <div className="fixed bottom-10 left-1/2 -translate-x-1/2 bg-gray-900 bg-opacity-90 text-white px-6 py-3 rounded-full shadow-lg z-[9999] text-center">
+        <div className="fixed top-10 left-1/2 -translate-x-1/2 bg-gray-900 bg-opacity-90 text-white px-6 py-3 rounded-full shadow-lg z-[9999] text-center">
           <p>{shareNotification}</p>
         </div>
       )}
@@ -1405,4 +1405,5 @@ const App = () => {
 };
 
 export default App;
+
 
