@@ -1153,6 +1153,23 @@ const MainApp = () => {
           }
       };
 
+      const getCaptionText = (assetToShare: CloudinaryAsset) => {
+          const possibleTexts = [
+              assetToShare.context?.alt,
+              assetToShare.metadata?.legenda,
+              assetToShare.context?.custom?.caption
+          ];
+          for (const value of possibleTexts) {
+              if (typeof value === 'string') {
+                  const trimmed = value.trim();
+                  if (trimmed.length > 0) {
+                      return trimmed;
+                  }
+              }
+          }
+          return '';
+      };
+
       try {
           if (!navigator.share || !navigator.canShare) {
               alert('Compartilhamento de arquivo não é suportado neste dispositivo/navegador.');
@@ -1166,12 +1183,31 @@ const MainApp = () => {
           const mimeType = getMimeType(asset.resource_type, asset.format);
           const file = new File([blob], fileName, { type: mimeType });
 
-          if (!navigator.canShare({ files: [file] })) {
+          const captionText = getCaptionText(asset);
+          const shareData: ShareData = {
+              title: asset.display_name,
+              files: [file]
+          };
+          if (captionText) {
+              shareData.text = captionText;
+          }
+
+          if (!navigator.canShare(shareData)) {
               alert('Este dispositivo/navegador não suporta compartilhamento de imagens como arquivo.');
               return;
           }
 
-          await navigator.share({ title: asset.display_name, text: asset.context?.alt || '', files: [file] });
+          const isWindows = typeof navigator !== 'undefined' && /windows/i.test(navigator.userAgent || '');
+          if (isWindows && captionText && navigator.clipboard?.writeText) {
+              try {
+                  await navigator.clipboard.writeText(captionText);
+                  console.info('Legenda copiada para a área de transferência como fallback para Windows.');
+              } catch (clipboardError) {
+                  console.warn('Falha ao copiar a legenda para a área de transferência:', clipboardError);
+              }
+          }
+
+          await navigator.share(shareData);
       } catch (err: any) {
           // Silencia cancelamentos do usuário e quaisquer erros de compartilhamento
           const msg = String(err?.message || '').toLowerCase();

@@ -24,6 +24,7 @@ const allowedOrigins = [
   'http://localhost:3001',
   'https://carboncontent.carlosmachado.tech',
   'https://carbon-content-frontend.qqbqnt.easypanel.host',
+  'https://carbon-content-dev-frontend.qqbqnt.easypanel.host',
   'https://content.carbon.cars'
 ];
 
