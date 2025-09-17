@@ -970,6 +970,7 @@ const MainApp = () => {
   const [recoveryToken, setRecoveryToken] = useState<string | null>(null);
   const [recoveryEmail, setRecoveryEmail] = useState('');
   const [currentView, setCurrentView] = useState<'library' | 'users'>('library');
+  const [shareNotification, setShareNotification] = useState<string | null>(null);
 
   useEffect(() => {
     const storedUser = supabase.current.getUser();
@@ -1170,13 +1171,11 @@ const MainApp = () => {
       };
 
       try {
-          // 1. Validar suporte básico da API
           if (!navigator.share) {
               alert('O compartilhamento não é suportado neste navegador.');
               return;
           }
 
-          // 2. Preparar os dados para compartilhamento
           const response = await fetch(asset.secure_url);
           if (!response.ok) throw new Error('Erro ao baixar mídia para compartilhamento');
           const blob = await response.blob();
@@ -1187,51 +1186,34 @@ const MainApp = () => {
           const captionText = getCaptionText(asset);
           const title = asset.context?.custom?.title || asset.display_name || fileName;
 
-          const fileShareData: ShareData = {
-              files: [file],
-              title: title,
-              text: captionText,
-          };
-
-          const linkShareData: ShareData = {
-            url: asset.secure_url,
-            title: title,
-            text: captionText,
-          };
+          const fileShareData: ShareData = { files: [file], title: title, text: captionText };
+          const linkShareData: ShareData = { url: asset.secure_url, title: title, text: captionText };
           
           const isWindows = typeof navigator !== 'undefined' && /windows/i.test(navigator.userAgent || '');
 
-          // 3. Tentar compartilhar o arquivo primeiro (com workaround para Windows)
           if (navigator.canShare && navigator.canShare(fileShareData)) {
-              // No Windows, o 'text' é frequentemente ignorado ao compartilhar arquivos.
-              // Aplicações como WhatsApp Desktop não preenchem a mensagem.
-              // Como workaround, copiamos a legenda para o clipboard para o usuário colar manualmente.
               if (isWindows && captionText && navigator.clipboard?.writeText) {
                   try {
                       await navigator.clipboard.writeText(captionText);
-                      // Idealmente, uma notificação "toast" seria exibida aqui.
-                      // Ex: "Legenda copiada para a área de transferência!"
-                      console.info('Legenda copiada para a área de transferência (fallback para Windows).');
+                      setShareNotification('Legenda copiada! Cole na mensagem se precisar.');
+                      setTimeout(() => setShareNotification(null), 4000);
                   } catch (clipboardError) {
                       console.warn('Falha ao copiar a legenda para a área de transferência:', clipboardError);
                   }
               }
               await navigator.share(fileShareData);
           } 
-          // 4. Se não for possível compartilhar arquivo, tentar compartilhar o link como fallback
           else if (navigator.canShare && navigator.canShare(linkShareData)) {
               await navigator.share(linkShareData);
           } 
-          // 5. Se nenhuma forma de compartilhamento for compatível
           else {
               alert('Não é possível compartilhar este tipo de conteúdo neste navegador.');
           }
       } catch (err: any) {
-          // Silencia cancelamentos do usuário e quaisquer erros de compartilhamento
           const msg = String(err?.message || '').toLowerCase();
           const name = String(err?.name || '');
           if (name === 'AbortError' || msg.includes('share canceled') || msg.includes('share cancelled')) {
-              return; // usuário cancelou a ação, não mostrar erro.
+              return;
           }
           console.error('Erro no compartilhamento:', err);
       }
@@ -1399,6 +1381,12 @@ const MainApp = () => {
         </div>
       )}
       
+      {shareNotification && (
+        <div className="fixed bottom-10 left-1/2 -translate-x-1/2 bg-gray-900 bg-opacity-90 text-white px-6 py-3 rounded-full shadow-lg z-[9999] text-center">
+          <p>{shareNotification}</p>
+        </div>
+      )}
+
       <footer className="text-gray-500 text-xs px-6 pb-6 mt-auto text-center">
         <div className="max-w-6xl mx-auto">
           <p>Logado como: <span className="font-semibold text-gray-500">{user?.email}</span></p>
@@ -1417,3 +1405,4 @@ const App = () => {
 };
 
 export default App;
+
