@@ -100,7 +100,13 @@ class SupabaseClient {
     this.url = SUPABASE_URL;
     this.key = SUPABASE_ANON_KEY;
     this.token = localStorage.getItem('supabase_token');
-    this.backendUrl = window.location.hostname === 'localhost' ? 'http://localhost:5001' : 'https://carbon-content-backend.qqbqnt.easypanel.host';
+    if (window.location.hostname === 'localhost') {
+      this.backendUrl = 'http://localhost:5001';
+    } else if (window.location.hostname.includes('carbon-content-dev-frontend.qqbqnt.easypanel.host')) {
+      this.backendUrl = 'https://carbon-content-dev-backend.qqbqnt.easypanel.host';
+    } else {
+      this.backendUrl = 'https://carbon-content-backend.qqbqnt.easypanel.host';
+    }
   }
 
   private getHeaders(includeAuth: boolean = true): Record<string, string> {
@@ -197,7 +203,13 @@ class CloudinaryClient {
   private backendUrl: string;
 
   constructor() {
-    this.backendUrl = window.location.hostname === 'localhost' ? 'http://localhost:5001' : 'https://carbon-content-backend.qqbqnt.easypanel.host/';
+    if (window.location.hostname === 'localhost') {
+      this.backendUrl = 'http://localhost:5001';
+    } else if (window.location.hostname.includes('carbon-content-dev-frontend.qqbqnt.easypanel.host')) {
+      this.backendUrl = 'https://carbon-content-dev-backend.qqbqnt.easypanel.host/';
+    } else {
+      this.backendUrl = 'https://carbon-content-backend.qqbqnt.easypanel.host/';
+    }
   }
 
   async searchAssets(searchTerm: string): Promise<CloudinaryAsset[]> {
