@@ -1141,6 +1141,7 @@ const MainApp = () => {
       posthog?.capture('media_asset_shared', {
           asset_id: asset.public_id,
           asset_type: asset.resource_type,
+          display_name: asset.display_name || asset.context?.custom?.title || asset.public_id,
           share_method: 'web_share_api'
       });
 
@@ -1406,7 +1407,6 @@ const App = () => {
 };
 
 export default App;
-
 
 
 
